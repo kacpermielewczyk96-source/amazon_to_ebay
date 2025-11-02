@@ -103,24 +103,44 @@ def generate_listing_text(title, meta, bullets):
     return "\n".join(lines).strip()
 
 def fetch_amazon(url_or_asin):
-    if "amazon" not in url_or_asin:
-        url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
-    else:
-        url = url_or_asin
+    # Normalizujemy wejście
+    raw = url_or_asin.strip()
 
-    headers = {"User-Agent": "Mozilla/5.0", "Accept-Language": "en-GB,en;q=0.9"}
+    # Jeśli ktoś wklei cały link → wyciągamy ASIN
+    match = re.search(r"/dp/([A-Za-z0-9]{10})|/gp/product/([A-Za-z0-9]{10})|([A-Za-z0-9]{10})", raw)
+    if match:
+        asin = next(g for g in match.groups() if g).upper()
+    else:
+        asin = raw.upper()
+
+    url = f"https://www.amazon.co.uk/dp/{asin}"
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-GB,en;q=0.9",
+    }
+
     r = requests.get(url, headers=headers, timeout=20)
     html = r.text
     soup = BeautifulSoup(html, "html.parser")
 
+    # Tytuł
     title_tag = soup.find("span", {"id": "productTitle"})
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
     images = extract_highres_images(html)
     bullets, meta = parse_bullets_and_meta(soup)
 
-    return {"title": title, "images": images, "bullets": bullets, "meta": meta}
-
+    return {
+        "title": title,
+        "images": images,
+        "bullets": bullets,
+        "meta": meta
+    }
 @app.route("/")
 def index():
     return render_template("index.html")
