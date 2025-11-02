@@ -155,14 +155,18 @@ def index():
 def scrape():
     url = request.form.get("url", "").strip()
     data = fetch_amazon(url)
+
     listing_html = generate_listing_html(data["title"], data["meta"], data["bullets"])
     listing_text = generate_listing_text(data["title"], data["meta"], data["bullets"])
-    return render_template("result.html",
-                           title80=truncate_title_80(data["title"]),
-                           full_title=data["title"],
-                           images=data["images"],
-                           listing_html=listing_html,
-                           listing_text=listing_text)
+
+    return render_template(
+        "result.html",
+        title80=truncate_title_80(data["title"]),
+        full_title=data["title"],
+        images=data["images"],
+        listing_html=listing_html,
+        listing_text=listing_text  # ✅ <- teraz jest przekazywany
+    )
 
 @app.route("/proxy")
 def proxy():

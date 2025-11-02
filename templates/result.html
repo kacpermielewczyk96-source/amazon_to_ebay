@@ -40,13 +40,17 @@
         .img-wrap img { width: 100%; border-radius: 8px; object-fit: cover; }
         .img-wrap input { position: absolute; top: 6px; left: 6px; transform: scale(1.4); }
 
-        #desc-box {
+        #desc-box, #plain-desc {
             border: 1px solid #ccc;
             border-radius: 8px;
             padding: 14px;
             margin-top: 18px;
             line-height: 1.45;
             font-size: 15px;
+        }
+
+        #plain-desc {
+            white-space: pre-wrap; /* ✅ zachowuje odstępy */
         }
     </style>
 </head>
@@ -74,11 +78,16 @@
         <button type="submit" class="btn download-btn">📦 Download Selected Images (.ZIP)</button>
     </form>
 
-    <button class="btn" onclick="copyHTML()">
-    ✏️ Copy Description
-</button>
-
+    <!-- HTML description -->
+    <button class="btn" onclick="copyHTML()">📝 Copy Description HTML</button>
     <div id="desc-box">{{ listing_html | safe }}</div>
+
+    <!-- ✅ PLAIN TEXT DESCRIPTION FOR MOBILE -->
+    <button class="btn" onclick="copyText(document.getElementById('plain-desc').innerText)">
+        📄 Copy Description Mobile
+    </button>
+
+    <div id="plain-desc">{{ listing_text }}</div>
 
     <form action="/" method="get">
         <button class="btn" style="margin-top:20px;">🔄 New Item (Back to ASIN Input)</button>
@@ -91,13 +100,10 @@ function copyText(text) {
     navigator.clipboard.writeText(text);
     alert("✅ Copied!");
 }
-</script>
-
-<script>
 function copyHTML() {
     const html = document.getElementById("desc-box").innerHTML;
     navigator.clipboard.writeText(html);
-    alert("✅ Description Copied (formatting preserved)");
+    alert("✅ HTML Description Copied!");
 }
 </script>
 
