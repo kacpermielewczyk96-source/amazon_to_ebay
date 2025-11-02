@@ -103,27 +103,19 @@ def generate_listing_text(title, meta, bullets):
     return "\n".join(lines).strip()
 
 def fetch_amazon(url_or_asin):
-    # Normalizujemy wejście
-    raw = url_or_asin.strip()
-
-    # Jeśli ktoś wklei cały link → wyciągamy ASIN
-    match = re.search(r"/dp/([A-Za-z0-9]{10})|/gp/product/([A-Za-z0-9]{10})|([A-Za-z0-9]{10})", raw)
-    if match:
-        asin = next(g for g in match.groups() if g).upper()
+    url_or_asin = url_or_asin.strip()
+    if "amazon" not in url_or_asin:
+        url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
     else:
-        asin = raw.upper()
+        url = url_or_asin
 
-    url = f"https://www.amazon.co.uk/dp/{asin}"
-
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-        ),
-        "Accept-Language": "en-GB,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Referer": "https://www.google.com/",
-        "DNT": "1",
+    headers = {  # <-- wstaw tu nowe nagłówki
+        "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/119.0.0.0 Safari/537.36"),
+        "Accept": ("text/html,application/xhtml+xml,application/xml;q=0.9,"
+                   "image/avif,image/webp,image/apng,*/*;q=0.8"),
+        "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8",
         "Connection": "keep-alive"
     }
 
