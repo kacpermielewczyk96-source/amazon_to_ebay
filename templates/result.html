@@ -19,20 +19,22 @@
             color: white;
             border: none;
             border-radius: 6px;
-            padding: 6px 10px;
+            padding: 6px 12px;
             font-size: 14px;
-            margin-left: 8px;
+            margin-top: 10px;
         }
 
+        /* ✅ Przywrócona siatka zdjęć */
         .images-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-            margin-top: 10px;
+            gap: 10px;
+            margin-top: 14px;
         }
 
         .img-wrap {
             position: relative;
+            border-radius: 8px;
         }
 
         .img-wrap img {
@@ -41,25 +43,27 @@
             object-fit: cover;
         }
 
+        /* ✅ Checkbox w rogu */
         .img-wrap input {
             position: absolute;
             top: 6px;
             left: 6px;
-            transform: scale(1.3);
+            transform: scale(1.4);
         }
 
         textarea {
             width: 100%;
-            height: 260px;
+            height: 280px;
             border-radius: 8px;
-            padding: 10px;
+            padding: 12px;
             font-size: 15px;
-            margin-top: 12px;
+            margin-top: 16px;
+            white-space: pre-wrap; /* ✅ zachowuje odstępy */
         }
 
         .download-button {
-            margin-top: 14px;
-            padding: 10px;
+            margin-top: 18px;
+            padding: 12px;
             border-radius: 8px;
             background: black;
             color: white;
@@ -67,6 +71,7 @@
             font-size: 16px;
             width: 100%;
         }
+
     </style>
 </head>
 <body>
@@ -77,24 +82,33 @@
 
     <button class="copy-btn" onclick="copyText('{{ title80 }}')">Copy Title</button>
 
-    <form action="/download" method="POST">
+    <form action="/download-zip" method="post">
         <div class="images-grid">
-            {% for img in images %}
+        {% for img in images %}
             <label class="img-wrap">
                 <input type="checkbox" name="selected" value="{{ img }}" checked>
-                <img src="{{ img }}">
+                <img src="/proxy?u={{ img }}">
             </label>
-            {% endfor %}
+        {% endfor %}
         </div>
 
-        <button class="download-button" type="submit">📥 Download Selected Images</button>
+        <button type="submit" class="download-button">
+            📦 Download Selected Images (.ZIP)
+        </button>
     </form>
 
-    <button class="copy-btn" style="margin-top:15px;" onclick="copyText(document.getElementById('desc').value)">
+    <button class="copy-btn" onclick="copyText(document.getElementById('desc').value)">
         Copy Description
     </button>
 
     <textarea id="desc">{{ listing_text }}</textarea>
+
+    <!-- 🔄 Powrót -->
+    <form action="/" method="get">
+        <button style="margin-top:20px; padding:12px; width:100%; background:#007aff; color:white; border:none; border-radius:8px; font-size:16px;">
+            🔄 New Item (Back to ASIN Input)
+        </button>
+    </form>
 
 </div>
 
