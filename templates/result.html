@@ -6,36 +6,27 @@
         body { font-family: Arial, sans-serif; padding: 15px; }
         .container { max-width: 600px; margin: auto; }
 
-        h2 { margin-bottom: 4px; }
+        h2 { margin-bottom: 6px; font-size: 22px; font-weight: 700; }
 
         .full-title {
             font-size: 14px;
             color: #666;
-            margin-top: 6px;
             margin-bottom: 14px;
         }
 
-        /* Pełna szerokość przycisków */
-        button.full-btn {
+        .btn {
             width: 100%;
             background: #007aff;
             color: white;
             border: none;
             border-radius: 8px;
             padding: 12px;
-            margin-top: 12px;
             font-size: 16px;
+            margin-top: 12px;
         }
 
-        .download-button {
-            margin-top: 18px;
-            padding: 12px;
-            border-radius: 8px;
-            background: black;
-            color: white;
-            text-align: center;
-            font-size: 16px;
-            width: 100%;
+        .download-btn {
+            background: black !important;
         }
 
         .images-grid {
@@ -45,23 +36,9 @@
             margin-top: 14px;
         }
 
-        .img-wrap {
-            position: relative;
-            border-radius: 8px;
-        }
-
-        .img-wrap img {
-            width: 100%;
-            border-radius: 8px;
-            object-fit: cover;
-        }
-
-        .img-wrap input {
-            position: absolute;
-            top: 6px;
-            left: 6px;
-            transform: scale(1.4);
-        }
+        .img-wrap { position: relative; }
+        .img-wrap img { width: 100%; border-radius: 8px; object-fit: cover; }
+        .img-wrap input { position: absolute; top: 6px; left: 6px; transform: scale(1.4); }
 
         #desc-box {
             border: 1px solid #ccc;
@@ -76,15 +53,13 @@
 <body>
 <div class="container">
 
+    <!-- Title 80 chars -->
     <h2>{{ title80 }}</h2>
 
-    <!-- Pełny tytuł pod skróconym -->
+    <!-- Full Title -->
     <div class="full-title">{{ full_title }}</div>
 
-    <!-- Copy Title -->
-    <button class="full-btn" onclick="copyText(`{{ full_title }}`)">
-        📋 Copy Title
-    </button>
+    <button class="btn" onclick="copyText('{{ full_title }}')">📋 Copy Title</button>
 
     <form action="/download-zip" method="post">
         <div class="images-grid">
@@ -96,23 +71,17 @@
         {% endfor %}
         </div>
 
-        <button type="submit" class="download-button">
-            📦 Download Selected Images (.ZIP)
-        </button>
+        <button type="submit" class="btn download-btn">📦 Download Selected Images (.ZIP)</button>
     </form>
 
-    <button class="full-btn" onclick="copyText(document.getElementById('desc-box').innerText)">
+    <button class="btn" onclick="copyText(document.getElementById('desc-box').innerText)">
         ✏️ Copy Description
     </button>
 
-    <div id="desc-box">
-        {{ listing_html | safe }}
-    </div>
+    <div id="desc-box">{{ listing_html | safe }}</div>
 
     <form action="/" method="get">
-        <button class="full-btn" style="margin-top:20px;">
-            🔄 New Item (Back to ASIN Input)
-        </button>
+        <button class="btn" style="margin-top:20px;">🔄 New Item (Back to ASIN Input)</button>
     </form>
 
 </div>
