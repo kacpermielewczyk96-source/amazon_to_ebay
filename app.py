@@ -107,8 +107,8 @@ def generate_listing_text(title, meta, bullets):
         lines.append("")
         for b in bullets[:10]:
             b = re.sub(r"\[[^\]]+\]", "", b).strip()
-            lines.append(f"• {b}")
-        lines.append("")
+            lines.append(f"⚫️ {b}")
+            lines.append("")
 
     # Końcowa linia — **TAK, ta co chcesz**
     lines.append("📦 Fast Dispatch from UK • 🚚 Tracked Delivery Included")
