@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { text-align:center; font-family:Arial; padding:12px; }
+img { width:100%; max-width:420px; border-radius:8px; margin-bottom:14px; }
+button { padding:14px 20px; font-size:17px; border:none; border-radius:10px; background:#111; color:white; }
+</style>
+</head>
+<body>
+
+<h3>Tap & hold image → Save to Photos</h3>
+
+{% for u in selected %}
+<img src="/proxy?u={{ u|urlencode }}">
+{% endfor %}
+
+<form action="/download-zip" method="post">
+{% for u in selected %}
+<input type="hidden" name="selected" value="{{ u }}">
+{% endfor %}
+<button>📦 Download All as ZIP</button>
+</form>
+
+<br><a href="/">⬅️ Add Next Product</a>
+
+</body>
+</html>

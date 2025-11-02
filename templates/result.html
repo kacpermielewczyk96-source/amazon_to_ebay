@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; padding: 15px; }
+        .container { max-width: 600px; margin: auto; }
+
+        h2 { margin-bottom: 4px; }
+
+        .full-title {
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 12px;
+        }
+
+        button.copy-btn {
+            background: #007aff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 14px;
+            margin-left: 8px;
+        }
+
+        .images-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .img-wrap {
+            position: relative;
+        }
+
+        .img-wrap img {
+            width: 100%;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+
+        .img-wrap input {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            transform: scale(1.3);
+        }
+
+        textarea {
+            width: 100%;
+            height: 260px;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 15px;
+            margin-top: 12px;
+        }
+
+        .download-button {
+            margin-top: 14px;
+            padding: 10px;
+            border-radius: 8px;
+            background: black;
+            color: white;
+            text-align: center;
+            font-size: 16px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <h2>{{ title80 }}</h2>
+    <div class="full-title">{{ full_title }}</div>
+
+    <button class="copy-btn" onclick="copyText('{{ title80 }}')">Copy Title</button>
+
+    <form action="/download" method="POST">
+        <div class="images-grid">
+            {% for img in images %}
+            <label class="img-wrap">
+                <input type="checkbox" name="selected" value="{{ img }}" checked>
+                <img src="{{ img }}">
+            </label>
+            {% endfor %}
+        </div>
+
+        <button class="download-button" type="submit">📥 Download Selected Images</button>
+    </form>
+
+    <button class="copy-btn" style="margin-top:15px;" onclick="copyText(document.getElementById('desc').value)">
+        Copy Description
+    </button>
+
+    <textarea id="desc">{{ listing_text }}</textarea>
+
+</div>
+
+<script>
+function copyText(text) {
+    navigator.clipboard.writeText(text);
+    alert("✅ Copied!");
+}
+</script>
+
+</body>
+</html>
