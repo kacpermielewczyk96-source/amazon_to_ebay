@@ -21,12 +21,9 @@ def truncate_title_80(s: str) -> str:
 def extract_highres_images(html: str) -> list:
     urls = []
     for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
-        u = m.group(1).replace("\\u0026", "&")
-        urls.append(u)
-
+        urls.append(m.group(1).replace("\\u0026", "&"))
     for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
-        u = m.group(1).replace("\\u0026", "&")
-        urls.append(u)
+        urls.append(m.group(1).replace("\\u0026", "&"))
 
     soup = BeautifulSoup(html, "html.parser")
     for img in soup.select("img[src*='images/I/']"):
@@ -40,22 +37,8 @@ def extract_highres_images(html: str) -> list:
 
     return out[:12]
 
-def fetch_page(url):
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Linux; Android 10; SM-G973F) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Mobile Safari/537.36"
-        ),
-        "Accept-Language": "en-GB,en;q=0.9",
-        "Referer": "https://www.google.com/"
-    }
-    return requests.get(url, headers=headers, timeout=20).text
-
 def fetch_amazon(url_or_asin):
     url_or_asin = url_or_asin.strip()
-
-    # używamy stabilnej wersji desktop – pełne zdjęcia
     if "amazon" not in url_or_asin:
         url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
     else:
@@ -72,33 +55,11 @@ def fetch_amazon(url_or_asin):
     html = r.text
     soup = BeautifulSoup(html, "html.parser")
 
-    # --- TITLE (pewny) ---
     title_tag = soup.find("span", {"id": "productTitle"})
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
-    # --- IMAGES: najlepsze możliwe jakościowo ---
-    images = []
-    # JSON hiRes / large
-    for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
-        u = m.group(1).replace("\\u0026", "&")
-        if u.endswith((".jpg", ".jpeg", ".png", ".webp")):
-            images.append(u)
+    images = extract_highres_images(html)
 
-    for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
-        u = m.group(1).replace("\\u0026", "&")
-        if u.endswith((".jpg", ".jpeg", ".png", ".webp")):
-            images.append(u)
-
-    # fallback – obrazy z viewer
-    for img in soup.select("img[src*='images/I/']"):
-        u = img.get("src", "")
-        if u.endswith((".jpg", ".jpeg", ".png", ".webp")):
-            images.append(u)
-
-    # unikaty + limit do 12
-    images = list(dict.fromkeys(images))[:12]
-
-    # --- BULLETS ---
     bullets = []
     for li in soup.select("#feature-bullets li"):
         t = li.get_text(" ", strip=True)
@@ -106,7 +67,6 @@ def fetch_amazon(url_or_asin):
             bullets.append(t)
     bullets = bullets[:10]
 
-    # --- META PARAMS (Brand / Colour) ---
     meta = {}
     for li in soup.select("#detailBullets_feature_div li"):
         text = li.get_text(" ", strip=True)
@@ -124,34 +84,68 @@ def fetch_amazon(url_or_asin):
         "meta": {"Brand": brand, "Colour": colour}
     }
 
-def generate_listing_html(title, meta, bullets):
-    # Czyścimy tytuł z nawiasów i śmieci
-    clean_title = re.sub(r"\[[^\]]+\]", "", title).strip()
+def generate_listing_text(title, meta, bullets):
+    brand = meta.get("Brand", "")
+    colour = meta.get("Colour", "")
 
-    html = []
-    html.append(f"<h2 style='margin-bottom:8px;'>{clean_title}</h2><br>")
+    lines = []
 
-    # ✅ Product Details tylko jeśli są realne dane
-    brand = meta.get("Brand") or meta.get("Brand Name") or ""
-    colour = meta.get("Colour") or meta.get("Color") or ""
+    # Tytuł bez emotek, czysty
+    lines.append(title)
+    lines.append("")  # odstęp
 
-    if brand or colour:
-        html.append("<h3>📌 Product Details</h3><ul>")
-        if brand:
-            html.append(f"<li><b>Brand:</b> {brand}</li>")
-        if colour:
-            html.append(f"<li><b>Colour:</b> {colour}</li>")
-        html.append("</ul><br><br>")
+    # Parametry jeśli są
+    if brand:
+        lines.append(f"Brand: {brand}")
+    if colour:
+        lines.append(f"Colour: {colour}")
+    lines.append("")
 
-    # ✅ Key Features z odstępami ładnymi pod eBay
+    # Cechy (max 10)
     if bullets:
-        html.append("<h3>✨ Key Features</h3><br><ul>")
-        for b in bullets:
+        lines.append("✨ Key Features:")
+        lines.append("")
+        for b in bullets[:10]:
             b = re.sub(r"\[[^\]]+\]", "", b).strip()
-            html.append(f"<li>{b}</li>")
-        html.append("</ul><br><br>")
+            lines.append(f"• {b}")
+        lines.append("")
 
-    return "\n".join(html)
+    # Końcowa linia — **TAK, ta co chcesz**
+    lines.append("📦 Fast Dispatch from UK • 🚚 Tracked Delivery Included")
+
+    return "\n".join(lines)
+
+def generate_listing_text(title, meta, bullets):
+    brand = meta.get("Brand", "")
+    colour = meta.get("Colour", "")
+
+    lines = []
+
+    # Tytuł
+    lines.append(title)
+    lines.append("")
+
+    # Podstawowe dane
+    if brand or colour:
+        if brand:
+            lines.append(f"Brand: {brand}")
+        if colour:
+            lines.append(f"Colour: {colour}")
+        lines.append("")
+
+    # Key Features
+    if bullets:
+        lines.append("✨ Key Features")
+        lines.append("")
+        for b in bullets[:10]:
+            b = re.sub(r"\[[^\]]+\]", "", b).strip()
+            lines.append(f"⚫️ {b}")
+        lines.append("")
+
+    # Stopka
+    lines.append("📦 Fast Dispatch from UK   |   🚚 Tracked Delivery Included")
+
+    return "\n".join(lines)
 
 @app.route("/")
 def index():
@@ -162,11 +156,13 @@ def scrape():
     url = request.form.get("url", "").strip()
     data = fetch_amazon(url)
     listing_html = generate_listing_html(data["title"], data["meta"], data["bullets"])
+    listing_text = generate_listing_text(data["title"], data["meta"], data["bullets"])
     return render_template("result.html",
                            title80=truncate_title_80(data["title"]),
                            full_title=data["title"],
                            images=data["images"],
-                           listing_html=listing_html)
+                           listing_html=listing_html,
+                           listing_text=listing_text)
 
 @app.route("/proxy")
 def proxy():
