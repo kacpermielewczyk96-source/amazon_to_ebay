@@ -8,7 +8,6 @@
 
         h2 { margin-bottom: 4px; }
 
-        /* pełny tytuł pod skróconym */
         .full-title {
             font-size: 14px;
             color: #666;
@@ -16,16 +15,27 @@
             margin-bottom: 14px;
         }
 
-        /* ✅ przyciski pełna szerokość */
-        button.copy-btn {
+        /* Pełna szerokość przycisków */
+        button.full-btn {
+            width: 100%;
             background: #007aff;
             color: white;
             border: none;
             border-radius: 8px;
             padding: 12px;
+            margin-top: 12px;
+            font-size: 16px;
+        }
+
+        .download-button {
+            margin-top: 18px;
+            padding: 12px;
+            border-radius: 8px;
+            background: black;
+            color: white;
+            text-align: center;
             font-size: 16px;
             width: 100%;
-            margin-top: 12px;
         }
 
         .images-grid {
@@ -37,6 +47,7 @@
 
         .img-wrap {
             position: relative;
+            border-radius: 8px;
         }
 
         .img-wrap img {
@@ -60,32 +71,21 @@
             line-height: 1.45;
             font-size: 15px;
         }
-
-        .download-button {
-            margin-top: 18px;
-            padding: 12px;
-            border-radius: 8px;
-            background: black;
-            color: white;
-            text-align: center;
-            font-size: 16px;
-            width: 100%;
-        }
     </style>
 </head>
 <body>
 <div class="container">
 
-    <!-- ✅ Skrócony tytuł -->
     <h2>{{ title80 }}</h2>
 
-    <!-- ✅ Pełny tytuł pod spodem -->
+    <!-- Pełny tytuł pod skróconym -->
     <div class="full-title">{{ full_title }}</div>
 
-    <!-- ✅ Kopiowanie tytułu -->
-    <button class="copy-btn" onclick="copyText('{{ title80 }}')">Copy Title</button>
+    <!-- Copy Title -->
+    <button class="full-btn" onclick="copyText(`{{ full_title }}`)">
+        📋 Copy Title
+    </button>
 
-    <!-- ✅ Grid zdjęć + zip -->
     <form action="/download-zip" method="post">
         <div class="images-grid">
         {% for img in images %}
@@ -101,17 +101,16 @@
         </button>
     </form>
 
-    <!-- ✅ Kopiowanie opisu -->
-    <button class="copy-btn" onclick="copyText(document.getElementById('desc-box').innerText)">
-        Copy Description
+    <button class="full-btn" onclick="copyText(document.getElementById('desc-box').innerText)">
+        ✏️ Copy Description
     </button>
 
-    <!-- ✅ Opis HTML -->
-    <div id="desc-box">{{ listing_html | safe }}</div>
+    <div id="desc-box">
+        {{ listing_html | safe }}
+    </div>
 
-    <!-- 🔄 Powrót -->
     <form action="/" method="get">
-        <button style="margin-top:20px; padding:12px; width:100%; background:#007aff; color:white; border:none; border-radius:8px; font-size:16px;">
+        <button class="full-btn" style="margin-top:20px;">
             🔄 New Item (Back to ASIN Input)
         </button>
     </form>
