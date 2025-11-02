@@ -8,23 +8,26 @@
 
         h2 { margin-bottom: 4px; }
 
+        /* pełny tytuł pod skróconym */
         .full-title {
             font-size: 14px;
-            color: #555;
-            margin-bottom: 12px;
+            color: #666;
+            margin-top: 6px;
+            margin-bottom: 14px;
         }
 
+        /* ✅ przyciski pełna szerokość */
         button.copy-btn {
             background: #007aff;
             color: white;
             border: none;
-            border-radius: 6px;
-            padding: 6px 12px;
-            font-size: 14px;
-            margin-top: 10px;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 12px;
         }
 
-        /* ✅ Przywrócona siatka zdjęć */
         .images-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -34,7 +37,6 @@
 
         .img-wrap {
             position: relative;
-            border-radius: 8px;
         }
 
         .img-wrap img {
@@ -43,7 +45,6 @@
             object-fit: cover;
         }
 
-        /* ✅ Checkbox w rogu */
         .img-wrap input {
             position: absolute;
             top: 6px;
@@ -51,14 +52,13 @@
             transform: scale(1.4);
         }
 
-        textarea {
-            width: 100%;
-            height: 280px;
+        #desc-box {
+            border: 1px solid #ccc;
             border-radius: 8px;
-            padding: 12px;
+            padding: 14px;
+            margin-top: 18px;
+            line-height: 1.45;
             font-size: 15px;
-            margin-top: 16px;
-            white-space: pre-wrap; /* ✅ zachowuje odstępy */
         }
 
         .download-button {
@@ -71,17 +71,21 @@
             font-size: 16px;
             width: 100%;
         }
-
     </style>
 </head>
 <body>
 <div class="container">
 
+    <!-- ✅ Skrócony tytuł -->
     <h2>{{ title80 }}</h2>
+
+    <!-- ✅ Pełny tytuł pod spodem -->
     <div class="full-title">{{ full_title }}</div>
 
+    <!-- ✅ Kopiowanie tytułu -->
     <button class="copy-btn" onclick="copyText('{{ title80 }}')">Copy Title</button>
 
+    <!-- ✅ Grid zdjęć + zip -->
     <form action="/download-zip" method="post">
         <div class="images-grid">
         {% for img in images %}
@@ -97,11 +101,13 @@
         </button>
     </form>
 
-    <button class="copy-btn" onclick="copyText(document.getElementById('desc').value)">
+    <!-- ✅ Kopiowanie opisu -->
+    <button class="copy-btn" onclick="copyText(document.getElementById('desc-box').innerText)">
         Copy Description
     </button>
 
-    <textarea id="desc">{{ listing_text }}</textarea>
+    <!-- ✅ Opis HTML -->
+    <div id="desc-box">{{ listing_html | safe }}</div>
 
     <!-- 🔄 Powrót -->
     <form action="/" method="get">
