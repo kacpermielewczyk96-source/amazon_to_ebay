@@ -78,13 +78,11 @@
         <button type="submit" class="btn download-btn">📦 Download Selected Images (.ZIP)</button>
     </form>
 
-    <!-- HTML description -->
-    <button class="btn" onclick="copyHTML()">📝 Copy Description HTML</button>
-    <div id="desc-box">{{ listing_html | safe }}</div>
+
 
     <!-- ✅ PLAIN TEXT DESCRIPTION FOR MOBILE -->
     <button class="btn" onclick="copyText(document.getElementById('plain-desc').innerText)">
-        📄 Copy Description Mobile
+        📄 Copy Description
     </button>
 
     <div id="plain-desc">{{ listing_text }}</div>
