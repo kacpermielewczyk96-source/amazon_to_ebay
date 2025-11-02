@@ -6,6 +6,14 @@
         body { font-family: Arial, sans-serif; padding: 15px; }
         .container { max-width: 600px; margin: auto; }
 
+        h2 { margin-bottom: 6px; font-size: 22px; font-weight: 700; }
+
+        .full-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 14px;
+        }
+
         .btn {
             width: 100%;
             background: #007aff;
@@ -17,7 +25,9 @@
             margin-top: 12px;
         }
 
-        .download-btn { background: black !important; }
+        .download-btn {
+            background: black !important;
+        }
 
         .images-grid {
             display: grid;
@@ -25,25 +35,33 @@
             gap: 10px;
             margin-top: 14px;
         }
-        .img-wrap { position: relative; }
-        .img-wrap img { width: 100%; border-radius: 8px; }
 
-        #plain-desc {
-            white-space: pre-wrap;
+        .img-wrap { position: relative; }
+        .img-wrap img { width: 100%; border-radius: 8px; object-fit: cover; }
+        .img-wrap input { position: absolute; top: 6px; left: 6px; transform: scale(1.4); }
+
+        #desc-box, #plain-desc {
             border: 1px solid #ccc;
             border-radius: 8px;
             padding: 14px;
             margin-top: 18px;
-            font-size: 15px;
             line-height: 1.45;
+            font-size: 15px;
+        }
+
+        #plain-desc {
+            white-space: pre-wrap; /* ✅ zachowuje odstępy */
         }
     </style>
 </head>
 <body>
 <div class="container">
 
+    <!-- Title 80 chars -->
     <h2>{{ title80 }}</h2>
-    <div style="color:#666; margin-bottom:12px;">{{ full_title }}</div>
+
+    <!-- Full Title -->
+    <div class="full-title">{{ full_title }}</div>
 
     <button class="btn" onclick="copyText('{{ full_title }}')">📋 Copy Title</button>
 
@@ -51,20 +69,26 @@
         <div class="images-grid">
         {% for img in images %}
             <label class="img-wrap">
-                <input type="checkbox" name="selected" value="{{ img }}" checked style="position:absolute; top:6px; left:6px; transform:scale(1.4);">
+                <input type="checkbox" name="selected" value="{{ img }}" checked>
                 <img src="/proxy?u={{ img }}">
             </label>
         {% endfor %}
         </div>
+
         <button type="submit" class="btn download-btn">📦 Download Selected Images (.ZIP)</button>
     </form>
 
-    <button class="btn" onclick="copyText(document.getElementById('plain-desc').innerText)">📄 Copy Description</button>
+
+
+    <!-- ✅ PLAIN TEXT DESCRIPTION FOR MOBILE -->
+    <button class="btn" onclick="copyText(document.getElementById('plain-desc').innerText)">
+        📄 Copy Description
+    </button>
 
     <div id="plain-desc">{{ listing_text }}</div>
 
     <form action="/" method="get">
-        <button class="btn" style="margin-top:20px;">🔄 New Item</button>
+        <button class="btn" style="margin-top:20px;">🔄 New Item </button>
     </form>
 
 </div>
@@ -73,6 +97,11 @@
 function copyText(text) {
     navigator.clipboard.writeText(text);
     alert("✅ Copied!");
+}
+function copyHTML() {
+    const html = document.getElementById("desc-box").innerHTML;
+    navigator.clipboard.writeText(html);
+    alert("✅ HTML Description Copied!");
 }
 </script>
 
