@@ -64,71 +64,74 @@ def parse_bullets_and_meta(soup: BeautifulSoup):
 
     return bullets, {"Brand": brand, "Colour": colour}
 
-def generate_listing_text(title, meta, bullets):
-    # usuń kwadratowe nawiasy i śmieci z amazona:
+def generate_listing_html(title, meta, bullets):
     clean_title = re.sub(r"\[[^\]]+\]", "", title).strip()
 
-    lines = []
-    lines.append(truncate_title_80(clean_title))
-    lines.append("")
+    html = []
+    html.append(f"<h2 style='margin-bottom:6px;'>{clean_title}</h2>")
 
-    lines.append(f"Full Title: {clean_title}")
-    lines.append("")
+    # Product Details Section
+    if meta.get("Brand") or meta.get("Colour"):
+        html.append("<h3>📌 Product Details</h3><ul>")
+        if meta.get("Brand"):
+            html.append(f"<li><b>Brand:</b> {meta['Brand']}</li>")
+        if meta.get("Colour"):
+            html.append(f"<li><b>Colour:</b> {meta['Colour']}</li>")
+        html.append("</ul>")
 
-    # Meta sekcja
-    params = []
-    if meta.get("Brand"):
-        params.append(f"Brand: {meta['Brand']}")
-    if meta.get("Colour"):
-        params.append(f"Colour: {meta['Colour']}")
-    if meta.get("Outlets"):
-        params.append(f"Outlets: {meta['Outlets']}")
-    if meta.get("Wireless"):
-        params.append("Wireless Charging: Yes")
-
-    if params:
-        lines.append("📌 Product Details")
-        for p in params:
-            lines.append(f"- {p}")
-        lines.append("")
-
-    # Sekcja cech
+    # Key Features Section
     if bullets:
-        lines.append("✨ Key Features")
-        for b in bullets[:10]:
-            b = re.sub(r"\[[^\]]+\]", "", b).strip()   # usuwa [ ... ]
-            lines.append(f"- {b}")
-        lines.append("")
+        html.append("<h3>✨ Key Features</h3><ul>")
+        for b in bullets:
+            b = re.sub(r"\[[^\]]+\]", "", b).strip()
+            html.append(f"<li>{b}</li>")
+        html.append("</ul>")
 
-    return "\n".join(lines).strip()
+    return "\n".join(html)
 
 def fetch_amazon(url_or_asin):
     url_or_asin = url_or_asin.strip()
-    if "amazon" not in url_or_asin:
-        url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
-    else:
-        url = url_or_asin
 
-    headers = {  # <-- wstaw tu nowe nagłówki
-        "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/119.0.0.0 Safari/537.36"),
-        "Accept": ("text/html,application/xhtml+xml,application/xml;q=0.9,"
-                   "image/avif,image/webp,image/apng,*/*;q=0.8"),
-        "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8",
-        "Connection": "keep-alive"
+    # MOBILE Amazon = mniej blokad
+    if "amazon" not in url_or_asin:
+        url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}?th=1&psc=1"
+    else:
+        url = url_or_asin.replace("www.amazon.", "m.amazon.") + "?th=1&psc=1"
+
+    headers = {
+        "User-Agent": ("Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) "
+                       "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                       "Version/16.2 Mobile/15E148 Safari/604.1"),
+        "Accept-Language": "en-GB,en;q=0.9",
     }
 
     r = requests.get(url, headers=headers, timeout=20)
     html = r.text
     soup = BeautifulSoup(html, "html.parser")
 
-    # Tytuł
-    title_tag = soup.find("span", {"id": "productTitle"})
+    # ✅ Title
+    title_tag = soup.select_one("h1#title, span#productTitle, h1 span")
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
-    images = extract_highres_images(html)
-    bullets, meta = parse_bullets_and_meta(soup)
+    # ✅ Images (mobile image viewer)
+    images = []
+    for img in soup.select("img[src*='images/I/']"):
+        src = img.get("src")
+        if src and src.endswith((".jpg", ".jpeg", ".png", ".webp")):
+            images.append(src)
+    images = list(dict.fromkeys(images))[:12]
+
+    # ✅ Bullets
+    bullets = [li.get_text(" ", strip=True) for li in soup.select("li span.a-list-item")]
+    bullets = bullets[:10]
+
+    # ✅ Meta
+    meta = {}
+    for row in soup.select("tr"):
+        cells = row.get_text(" ", strip=True).split(":")
+        if len(cells) == 2:
+            key, val = cells
+            meta[key.strip()] = val.strip()
 
     return {
         "title": title,
@@ -144,8 +147,12 @@ def index():
 def scrape():
     url = request.form.get("url", "").strip()
     data = fetch_amazon(url)
-    listing_text = generate_listing_text(data["title"], data["meta"], data["bullets"])
-    return render_template("result.html", title80=truncate_title_80(data["title"]), full_title=data["title"], images=data["images"], listing_text=listing_text)
+    listing_html = generate_listing_html(data["title"], data["meta"], data["bullets"])
+    return render_template("result.html",
+                           title80=truncate_title_80(data["title"]),
+                           full_title=data["title"],
+                           images=data["images"],
+                           listing_html=listing_html)
 
 @app.route("/download", methods=["POST"])
 def download_selected():
