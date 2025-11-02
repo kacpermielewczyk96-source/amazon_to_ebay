@@ -125,18 +125,32 @@ def fetch_amazon(url_or_asin):
     }
 
 def generate_listing_html(title, meta, bullets):
-    clean = re.sub(r"$begin:math:display$[^$end:math:display$]+\]", "", title).strip()
-    html = [f"<h2>{clean}</h2>"]
-    if meta:
+    # Czyścimy tytuł z nawiasów i śmieci
+    clean_title = re.sub(r"\[[^\]]+\]", "", title).strip()
+
+    html = []
+    html.append(f"<h2 style='margin-bottom:8px;'>{clean_title}</h2><br>")
+
+    # ✅ Product Details tylko jeśli są realne dane
+    brand = meta.get("Brand") or meta.get("Brand Name") or ""
+    colour = meta.get("Colour") or meta.get("Color") or ""
+
+    if brand or colour:
         html.append("<h3>📌 Product Details</h3><ul>")
-        for k,v in meta.items():
-            html.append(f"<li><b>{k}:</b> {v}</li>")
-        html.append("</ul>")
+        if brand:
+            html.append(f"<li><b>Brand:</b> {brand}</li>")
+        if colour:
+            html.append(f"<li><b>Colour:</b> {colour}</li>")
+        html.append("</ul><br><br>")
+
+    # ✅ Key Features z odstępami ładnymi pod eBay
     if bullets:
-        html.append("<h3>✨ Key Features</h3><ul>")
+        html.append("<h3>✨ Key Features</h3><br><ul>")
         for b in bullets:
+            b = re.sub(r"\[[^\]]+\]", "", b).strip()
             html.append(f"<li>{b}</li>")
-        html.append("</ul>")
+        html.append("</ul><br><br>")
+
     return "\n".join(html)
 
 @app.route("/")

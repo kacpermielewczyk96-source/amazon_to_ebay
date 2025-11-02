@@ -74,9 +74,9 @@
         <button type="submit" class="btn download-btn">📦 Download Selected Images (.ZIP)</button>
     </form>
 
-    <button class="btn" onclick="copyText(document.getElementById('desc-box').innerText)">
-        ✏️ Copy Description
-    </button>
+    <button class="btn" onclick="copyHTML()">
+    ✏️ Copy Description
+</button>
 
     <div id="desc-box">{{ listing_html | safe }}</div>
 
@@ -90,6 +90,14 @@
 function copyText(text) {
     navigator.clipboard.writeText(text);
     alert("✅ Copied!");
+}
+</script>
+
+<script>
+function copyHTML() {
+    const html = document.getElementById("desc-box").innerHTML;
+    navigator.clipboard.writeText(html);
+    alert("✅ Description Copied (formatting preserved)");
 }
 </script>
 
