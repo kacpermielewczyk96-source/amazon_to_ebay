@@ -55,36 +55,74 @@ def fetch_page(url):
 def fetch_amazon(url_or_asin):
     url_or_asin = url_or_asin.strip()
 
+    # używamy stabilnej wersji desktop – pełne zdjęcia
     if "amazon" not in url_or_asin:
-        url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}?psc=1&th=1"
+        url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
     else:
         url = url_or_asin
 
-    html = fetch_page(url)
+    headers = {
+        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/120.0 Safari/537.36"),
+        "Accept-Language": "en-GB,en;q=0.9",
+    }
 
-    # Fallback: jeśli CAPTCHa → zmieniamy na wersję mobilną
-    if "captcha" in html.lower() or "type the characters" in html.lower():
-        url = url.replace("www.amazon.", "m.amazon.")
-        html = fetch_page(url)
-
+    r = requests.get(url, headers=headers, timeout=20)
+    html = r.text
     soup = BeautifulSoup(html, "html.parser")
 
-    title_tag = soup.select_one("#productTitle, span#productTitle, h1 span, h1#title")
+    # --- TITLE (pewny) ---
+    title_tag = soup.find("span", {"id": "productTitle"})
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
-    images = extract_highres_images(html)
+    # --- IMAGES: najlepsze możliwe jakościowo ---
+    images = []
+    # JSON hiRes / large
+    for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
+        u = m.group(1).replace("\\u0026", "&")
+        if u.endswith((".jpg", ".jpeg", ".png", ".webp")):
+            images.append(u)
 
-    bullets = [li.get_text(" ", strip=True) for li in soup.select("#feature-bullets li span")]
+    for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
+        u = m.group(1).replace("\\u0026", "&")
+        if u.endswith((".jpg", ".jpeg", ".png", ".webp")):
+            images.append(u)
+
+    # fallback – obrazy z viewer
+    for img in soup.select("img[src*='images/I/']"):
+        u = img.get("src", "")
+        if u.endswith((".jpg", ".jpeg", ".png", ".webp")):
+            images.append(u)
+
+    # unikaty + limit do 12
+    images = list(dict.fromkeys(images))[:12]
+
+    # --- BULLETS ---
+    bullets = []
+    for li in soup.select("#feature-bullets li"):
+        t = li.get_text(" ", strip=True)
+        if t and "Click to" not in t and "This fits your" not in t:
+            bullets.append(t)
     bullets = bullets[:10]
 
+    # --- META PARAMS (Brand / Colour) ---
     meta = {}
-    for tr in soup.select("#detailBullets_feature_div li, tr"):
-        txt = " ".join(tr.get_text(" ", strip=True).split())
-        if ":" in txt:
-            k, v = txt.split(":", 1)
+    for li in soup.select("#detailBullets_feature_div li"):
+        text = li.get_text(" ", strip=True)
+        if ":" in text:
+            k, v = text.split(":", 1)
             meta[k.strip()] = v.strip()
 
-    return {"title": title, "images": images, "bullets": bullets, "meta": meta}
+    brand = meta.get("Brand", "")
+    colour = meta.get("Colour", "")
+
+    return {
+        "title": title,
+        "images": images,
+        "bullets": bullets,
+        "meta": {"Brand": brand, "Colour": colour}
+    }
 
 def generate_listing_html(title, meta, bullets):
     clean = re.sub(r"$begin:math:display$[^$end:math:display$]+\]", "", title).strip()
