@@ -104,30 +104,31 @@ def generate_listing_text(title, meta, bullets):
 
     lines = []
 
-    # Tytuł bez emotek, czysty
+    # Tytuł
     lines.append(title)
     lines.append("")  # odstęp
 
-    # Parametry jeśli są
-    if brand:
-        lines.append(f"Brand: {brand}")
-    if colour:
-        lines.append(f"Colour: {colour}")
-    lines.append("")
+    # Brand / Colour
+    if brand or colour:
+        if brand:
+            lines.append(f"Brand: {brand}")
+        if colour:
+            lines.append(f"Colour: {colour}")
+        lines.append("")  # odstęp
 
-    # Cechy (max 10)
+    # Key Features
     if bullets:
-        lines.append("✨ Key Features:")
-        lines.append("")
+        lines.append("✨ Key Features")
+        lines.append("")  # odstęp
         for b in bullets[:10]:
             b = re.sub(r"\[[^\]]+\]", "", b).strip()
             lines.append(f"⚫️ {b}")
-            lines.append("")
+            lines.append("")  # ✅ PRZERWA po każdej linii
 
-    # Końcowa linia — **TAK, ta co chcesz**
-    lines.append("📦 Fast Dispatch from UK • 🚚 Tracked Delivery Included")
+    # Stopka
+    lines.append("📦 Fast Dispatch from UK | 🚚 Tracked Delivery Included")
 
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n"  # ✅ dodatkowy enter na końcu
 
 def generate_listing_text(title, meta, bullets):
     brand = meta.get("Brand", "")
