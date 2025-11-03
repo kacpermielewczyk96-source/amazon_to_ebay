@@ -43,35 +43,32 @@ def fetch_amazon(url_or_asin):
 
     url_or_asin = url_or_asin.strip()
 
-    # budujemy link Amazon
     if "amazon" not in url_or_asin:
         amazon_url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
     else:
-        amazon_url = url_or_asin.split("?")[0]
+        amazon_url = url_or_asin
 
-    # ✅ używamy ScraperAPI → ale BEZ render=true (szybko!)
-    # tylko odblokowanie IP:
-    url = f"http://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}"
+    # ScraperAPI proxy URL
+    url = f"http://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&keep_headers=true"
 
     headers = {
         "User-Agent": (
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-            "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-            "Version/17.0 Mobile/15E148 Safari/604.1"
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/123.0 Safari/537.36"
         ),
         "Accept-Language": "en-GB,en;q=0.9",
-        "Referer": "https://www.google.com/"
     }
 
-    r = requests.get(url, headers=headers, timeout=20)
+    r = requests.get(url, headers=headers, timeout=30)
     html = r.text
     soup = BeautifulSoup(html, "html.parser")
 
-    # Tytuł
+    # Title
     title_tag = soup.find("span", {"id": "productTitle"})
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
-    # Zdjęcia
+    # Images
     images = extract_highres_images(html)
     images = list(dict.fromkeys(images))[:12]
 
@@ -83,7 +80,7 @@ def fetch_amazon(url_or_asin):
             bullets.append(t)
     bullets = bullets[:10]
 
-    # Meta (brand/colour)
+    # Meta
     meta = {}
     for li in soup.select("#detailBullets_feature_div li"):
         text = li.get_text(" ", strip=True)
