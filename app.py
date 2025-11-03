@@ -38,28 +38,40 @@ def extract_highres_images(html: str) -> list:
     return out[:12]
 
 def fetch_amazon(url_or_asin):
+    API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
+
     url_or_asin = url_or_asin.strip()
+
     if "amazon" not in url_or_asin:
-        url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
+        amazon_url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
     else:
-        url = url_or_asin
+        amazon_url = url_or_asin
+
+    # ScraperAPI proxy URL
+    url = f"http://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&keep_headers=true"
 
     headers = {
-        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/120.0 Safari/537.36"),
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/123.0 Safari/537.36"
+        ),
         "Accept-Language": "en-GB,en;q=0.9",
     }
 
-    r = requests.get(url, headers=headers, timeout=20)
+    r = requests.get(url, headers=headers, timeout=30)
     html = r.text
     soup = BeautifulSoup(html, "html.parser")
 
+    # Title
     title_tag = soup.find("span", {"id": "productTitle"})
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
+    # Images
     images = extract_highres_images(html)
+    images = list(dict.fromkeys(images))[:12]
 
+    # Bullets
     bullets = []
     for li in soup.select("#feature-bullets li"):
         t = li.get_text(" ", strip=True)
@@ -67,6 +79,7 @@ def fetch_amazon(url_or_asin):
             bullets.append(t)
     bullets = bullets[:10]
 
+    # Meta
     meta = {}
     for li in soup.select("#detailBullets_feature_div li"):
         text = li.get_text(" ", strip=True)
@@ -74,14 +87,11 @@ def fetch_amazon(url_or_asin):
             k, v = text.split(":", 1)
             meta[k.strip()] = v.strip()
 
-    brand = meta.get("Brand", "")
-    colour = meta.get("Colour", "")
-
     return {
         "title": title,
         "images": images,
         "bullets": bullets,
-        "meta": {"Brand": brand, "Colour": colour}
+        "meta": meta
     }
 
 def generate_listing_text(title, meta, bullets):
