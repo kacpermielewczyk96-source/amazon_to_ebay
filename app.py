@@ -18,24 +18,25 @@ def truncate_title_80(s: str) -> str:
         cut = cut[:cut.rfind(" ")].rstrip()
     return cut
 
-def extract_highres_images(html: str) -> list:
+def extract_highres_images(html: str):
     urls = []
+
+    # ✅ Pobieramy tylko zdjęcia z głównej galerii (hiRes / large)
     for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
-        urls.append(m.group(1).replace("\\u0026", "&"))
+        u = m.group(1).replace("\\u0026", "&")
+        if u.endswith((".jpg", ".jpeg", ".png", ".webp")):
+            urls.append(u)
+
     for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
-        urls.append(m.group(1).replace("\\u0026", "&"))
+        u = m.group(1).replace("\\u0026", "&")
+        if u.endswith((".jpg", ".jpeg", ".png", ".webp")) and u not in urls:
+            urls.append(u)
 
-    soup = BeautifulSoup(html, "html.parser")
-    for img in soup.select("img[src*='images/I/']"):
-        u = img.get("src", "")
-        urls.append(u)
+    # ✅ ŻADNYCH zdjęć z recenzji / miniaturek
+    # → więc nie dodajemy nic z soup.select("img...")
 
-    out = []
-    for u in urls:
-        if u.endswith((".jpg", ".jpeg", ".png", ".webp")) and u not in out:
-            out.append(u)
-
-    return out[:12]
+    # limit maksymalnie 12
+    return urls[:12]
 
 def fetch_amazon(url_or_asin):
     API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"

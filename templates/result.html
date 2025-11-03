@@ -81,11 +81,13 @@
 
 
     <!-- ✅ PLAIN TEXT DESCRIPTION FOR MOBILE -->
-    <button class="btn" onclick="copyText(document.getElementById('plain-desc').innerText)">
-        📄 Copy Description
-    </button>
+<button class="btn" onclick="copyText(document.getElementById('plain-desc').innerText)">
+    📄 Copy Description
+</button>
 
-    <div id="plain-desc">{{ listing_text }}</div>
+<div id="plain-desc" style="white-space: pre-wrap; line-height: 1.5; margin-top: 12px;">
+{{ listing_text }}
+</div>
 
     <form action="/" method="get">
         <button class="btn" style="margin-top:20px;">🔄 New Item </button>
@@ -97,11 +99,7 @@
 function copyText(text) {
     navigator.clipboard.writeText(text);
 }
-function copyHTML() {
-    const html = document.getElementById("desc-box").innerHTML;
-    navigator.clipboard.writeText(html);
 
-}
 </script>
 
 </body>
