@@ -5,7 +5,6 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import unquote
 import zipfile
-from datetime import datetime
 
 app = Flask(__name__)
 
@@ -18,66 +17,44 @@ def truncate_title_80(s: str) -> str:
         cut = cut[:cut.rfind(" ")].rstrip()
     return cut
 
-def extract_highres_images(html: str):
-    urls = []
-
-    # ✅ Pobieramy tylko zdjęcia z głównej galerii (hiRes / large)
-    for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
-        u = m.group(1).replace("\\u0026", "&")
-        if u.endswith((".jpg", ".jpeg", ".png", ".webp")):
-            urls.append(u)
-
-    for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
-        u = m.group(1).replace("\\u0026", "&")
-        if u.endswith((".jpg", ".jpeg", ".png", ".webp")) and u not in urls:
-            urls.append(u)
-
-    # ✅ ŻADNYCH zdjęć z recenzji / miniaturek
-    # → więc nie dodajemy nic z soup.select("img...")
-
-    # limit maksymalnie 12
-    return urls[:12]
-
-def fetch_amazon(url_or_asin):
-    url_or_asin = url_or_asin.strip().upper()
-
-    if "amazon" not in url_or_asin:
-        asin = url_or_asin
-    else:
-        asin = re.search(r"/dp/([A-Z0-9]{8,12})", url_or_asin)
-        asin = asin.group(1) if asin else url_or_asin[-10:]
-
-    # ✅ API z bulletami – szybkie i bez blokad
-    api_url = f"https://www.amazon.co.uk/gp/aod/api/patterns/dp/{asin}"
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
-        "Accept-Language": "en-GB,en;q=0.9",
-    }
-
-    r = requests.get(api_url, headers=headers, timeout=8)
-    data = r.json()
-
-    # ✅ Tytuł
-    title = data.get("title", "No title found").strip()
-
-    # ✅ Bullets
-    bullets = [b.strip() for b in data.get("feature_bullets", [])]
-    bullets = bullets[:10]
-
-    # ✅ Meta
-    meta = {
-        "Brand": data.get("brand", ""),
-        "Colour": data.get("color", "")
-    }
-
-    # ✅ Zdjęcia – szybkie, główna galeria (bez opinii!)
+def extract_highres_images(data):
     images = []
     for img in data.get("images", []):
         full = img.get("hiRes") or img.get("large")
         if full and full.startswith("https"):
             images.append(full)
-    images = images[:12]
+    return images[:12]
+
+def fetch_amazon(url_or_asin):
+    url_or_asin = url_or_asin.strip().upper()
+
+    # Wyciąganie ASIN
+    if "AMAZON" not in url_or_asin:
+        asin = url_or_asin
+    else:
+        m = re.search(r"/dp/([A-Z0-9]{8,12})", url_or_asin)
+        asin = m.group(1) if m else url_or_asin[-10:]
+
+    # API Amazon — szybkie i bez blokad
+    api_url = f"https://www.amazon.co.uk/gp/aod/api/patterns/dp/{asin}"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+        "Accept-Language": "en-GB,en;q=0.9"
+    }
+
+    r = requests.get(api_url, headers=headers, timeout=8)
+    data = r.json()
+
+    title = data.get("title", "No title found").strip()
+    bullets = [b.strip() for b in data.get("feature_bullets", [])][:10]
+
+    meta = {
+        "Brand": data.get("brand", ""),
+        "Colour": data.get("color", "")
+    }
+
+    images = extract_highres_images(data)
 
     return {
         "title": title,
@@ -94,61 +71,28 @@ def generate_listing_text(title, meta, bullets):
 
     # Tytuł
     lines.append(title)
-    lines.append("")  # odstęp
+    lines.append("")  # przerwa
 
-    # Brand / Colour
-    if brand or colour:
-        if brand:
-            lines.append(f"Brand: {brand}")
-        if colour:
-            lines.append(f"Colour: {colour}")
-        lines.append("")  # odstęp
+    # Meta
+    if brand:
+        lines.append(f"Brand: {brand}")
+    if colour:
+        lines.append(f"Colour: {colour}")
+    lines.append("")  # przerwa
 
-    # Key Features
+    # Cechy
     if bullets:
         lines.append("✨ Key Features")
-        lines.append("")  # odstęp
-        for b in bullets[:10]:
+        lines.append("")
+        for b in bullets:
             b = re.sub(r"\[[^\]]+\]", "", b).strip()
             lines.append(f"⚫️ {b}")
-            lines.append("")  # ✅ PRZERWA po każdej linii
+            lines.append("")  # przerwa po każdym punkcie
 
     # Stopka
     lines.append("📦 Fast Dispatch from UK | 🚚 Tracked Delivery Included")
 
-    return "\n".join(lines) + "\n"  # ✅ dodatkowy enter na końcu
-
-def generate_listing_text(title, meta, bullets):
-    brand = meta.get("Brand", "")
-    colour = meta.get("Colour", "")
-
-    lines = []
-
-    # Tytuł
-    lines.append(title)
-    lines.append("")
-
-    # Podstawowe dane
-    if brand or colour:
-        if brand:
-            lines.append(f"Brand: {brand}")
-        if colour:
-            lines.append(f"Colour: {colour}")
-        lines.append("")
-
-    # Key Features
-    if bullets:
-        lines.append("✨ Key Features")
-        lines.append("")
-        for b in bullets[:10]:
-            b = re.sub(r"\[[^\]]+\]", "", b).strip()
-            lines.append(f"⚫️ {b}")
-        lines.append("")
-
-    # Stopka
-    lines.append("📦 Fast Dispatch from UK   |   🚚 Tracked Delivery Included")
-
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n"
 
 @app.route("/")
 def index():
@@ -158,7 +102,6 @@ def index():
 def scrape():
     url = request.form.get("url", "").strip()
     data = fetch_amazon(url)
-
     listing_text = generate_listing_text(data["title"], data["meta"], data["bullets"])
 
     return render_template(
@@ -166,7 +109,7 @@ def scrape():
         title80=truncate_title_80(data["title"]),
         full_title=data["title"],
         images=data["images"],
-        listing_text=listing_text  # ✅ <- teraz jest przekazywany
+        listing_text=listing_text
     )
 
 @app.route("/proxy")
