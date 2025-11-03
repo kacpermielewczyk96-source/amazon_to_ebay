@@ -38,63 +38,66 @@ def extract_highres_images(html: str) -> list:
     return out[:12]
 
 def fetch_amazon(url_or_asin):
+    SCRAPER_API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
+
     url_or_asin = url_or_asin.strip()
     if "amazon" not in url_or_asin:
         url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
     else:
         url = url_or_asin
 
-    headers = {  # tego nie ruszamy
-        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/120.0 Safari/537.36"),
-        "Accept-Language": "en-GB,en;q=0.9",
-    }
+    # ✅ wymuszamy wersję mobilną (mniej blokad, pełne zdjęcia)
+    url = url.replace("www.amazon.", "m.amazon.")
 
-    SCRAPER_API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
-
+    # ✅ ScraperAPI usuwa blokady Amazon
     r = requests.get(
         "https://api.scraperapi.com",
         params={
             "api_key": SCRAPER_API_KEY,
-            "url": url,
-            "render": "true"
+            "url": url
         },
-        timeout=30
+        timeout=25
     )
 
     html = r.text
     soup = BeautifulSoup(html, "html.parser")
 
-    # Title
-    title_tag = soup.find("span", {"id": "productTitle"})
+    # ✅ Tytuł
+    title_tag = soup.select_one("h1#title, span#productTitle, h1 span")
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
-    # Images
-    images = extract_highres_images(html)
+    # ✅ Zdjęcia (mobilne są czyste i wysokiej jakości)
+    images = []
+    for img in soup.select("img[src*='images/I/']"):
+        u = img.get("src", "")
+        if u.endswith((".jpg", ".jpeg", ".png", ".webp")):
+            images.append(u)
     images = list(dict.fromkeys(images))[:12]
 
-    # Bullets
+    # ✅ Bullets
     bullets = []
-    for li in soup.select("#feature-bullets li"):
+    for li in soup.select("#feature-bullets li, li span.a-list-item"):
         t = li.get_text(" ", strip=True)
-        if t and "Click to" not in t and "This fits your" not in t:
+        if t and "Click to" not in t and "This fits" not in t:
             bullets.append(t)
     bullets = bullets[:10]
 
-    # Meta
+    # ✅ Brand & Colour
     meta = {}
-    for li in soup.select("#detailBullets_feature_div li"):
-        text = li.get_text(" ", strip=True)
+    for li in soup.select("#detailBullets_feature_div li, tr"):
+        text = " ".join(li.get_text(" ", strip=True).split())
         if ":" in text:
             k, v = text.split(":", 1)
             meta[k.strip()] = v.strip()
+
+    brand = meta.get("Brand", "")
+    colour = meta.get("Colour", "") or meta.get("Color", "")
 
     return {
         "title": title,
         "images": images,
         "bullets": bullets,
-        "meta": meta
+        "meta": {"Brand": brand, "Colour": colour}
     }
 
 def generate_listing_text(title, meta, bullets):
