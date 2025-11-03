@@ -38,28 +38,31 @@ def extract_highres_images(html: str) -> list:
     return out[:12]
 
 def fetch_amazon(url_or_asin):
-    API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
-
     url_or_asin = url_or_asin.strip()
-
     if "amazon" not in url_or_asin:
-        amazon_url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
+        url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
     else:
-        amazon_url = url_or_asin
+        url = url_or_asin
 
-    # ScraperAPI proxy URL
-    url = f"http://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&keep_headers=true"
-
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/123.0 Safari/537.36"
-        ),
+    headers = {  # tego nie ruszamy
+        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/120.0 Safari/537.36"),
         "Accept-Language": "en-GB,en;q=0.9",
     }
 
-    r = requests.get(url, headers=headers, timeout=30)
+    SCRAPER_API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
+
+    r = requests.get(
+        "https://api.scraperapi.com",
+        params={
+            "api_key": SCRAPER_API_KEY,
+            "url": url,
+            "render": "true"
+        },
+        timeout=30
+    )
+
     html = r.text
     soup = BeautifulSoup(html, "html.parser")
 
