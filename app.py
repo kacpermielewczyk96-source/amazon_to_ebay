@@ -49,7 +49,7 @@ def fetch_amazon(url_or_asin):
         amazon_url = url_or_asin
 
     # ScraperAPI proxy URL
-    url = f"http://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&keep_headers=true"
+    url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&keep_headers=true"
 
     headers = {
         "User-Agent": (
