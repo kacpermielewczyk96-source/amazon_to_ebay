@@ -45,15 +45,10 @@ def fetch_amazon(url_or_asin):
     if "amazon" not in url_or_asin:
         amazon_url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
     else:
-        amazon_url = url_or_asin.split("?")[0]
+        amazon_url = url_or_asin
 
-    # ✅ ScraperAPI (render=true = pełna strona, brak captcha)
-    url = (
-        "https://api.scraperapi.com?"
-        f"api_key={API_KEY}"
-        f"&url={amazon_url}"
-        "&render=true"
-    )
+    # ScraperAPI proxy URL
+    url = f"http://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&keep_headers=true"
 
     headers = {
         "User-Agent": (
@@ -62,22 +57,21 @@ def fetch_amazon(url_or_asin):
             "Chrome/123.0 Safari/537.36"
         ),
         "Accept-Language": "en-GB,en;q=0.9",
-        "Referer": "https://www.google.com/"
     }
 
     r = requests.get(url, headers=headers, timeout=30)
     html = r.text
     soup = BeautifulSoup(html, "html.parser")
 
-    # ✅ Title
+    # Title
     title_tag = soup.find("span", {"id": "productTitle"})
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
-    # ✅ Images (best quality)
+    # Images
     images = extract_highres_images(html)
     images = list(dict.fromkeys(images))[:12]
 
-    # ✅ Bullets
+    # Bullets
     bullets = []
     for li in soup.select("#feature-bullets li"):
         t = li.get_text(" ", strip=True)
@@ -85,7 +79,7 @@ def fetch_amazon(url_or_asin):
             bullets.append(t)
     bullets = bullets[:10]
 
-    # ✅ Meta
+    # Meta
     meta = {}
     for li in soup.select("#detailBullets_feature_div li"):
         text = li.get_text(" ", strip=True)
