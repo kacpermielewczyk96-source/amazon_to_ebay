@@ -39,57 +39,45 @@ def extract_highres_images(html: str):
     return urls[:12]
 
 def fetch_amazon(url_or_asin):
-    API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
+    url_or_asin = url_or_asin.strip().upper()
 
-    url_or_asin = url_or_asin.strip()
-
-    # budujemy link Amazon
     if "amazon" not in url_or_asin:
-        amazon_url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
+        asin = url_or_asin
     else:
-        amazon_url = url_or_asin.split("?")[0]
+        asin = re.search(r"/dp/([A-Z0-9]{8,12})", url_or_asin)
+        asin = asin.group(1) if asin else url_or_asin[-10:]
 
-    # ✅ używamy ScraperAPI → ale BEZ render=true (szybko!)
-    # tylko odblokowanie IP:
-    url = f"http://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}"
+    # ✅ API z bulletami – szybkie i bez blokad
+    api_url = f"https://www.amazon.co.uk/gp/aod/api/patterns/dp/{asin}"
 
     headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-            "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-            "Version/17.0 Mobile/15E148 Safari/604.1"
-        ),
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
         "Accept-Language": "en-GB,en;q=0.9",
-        "Referer": "https://www.google.com/"
     }
 
-    r = requests.get(url, headers=headers, timeout=20)
-    html = r.text
-    soup = BeautifulSoup(html, "html.parser")
+    r = requests.get(api_url, headers=headers, timeout=8)
+    data = r.json()
 
-    # Tytuł
-    title_tag = soup.find("span", {"id": "productTitle"})
-    title = title_tag.get_text(strip=True) if title_tag else "No title found"
+    # ✅ Tytuł
+    title = data.get("title", "No title found").strip()
 
-    # Zdjęcia
-    images = extract_highres_images(html)
-    images = list(dict.fromkeys(images))[:12]
-
-    # Bullets
-    bullets = []
-    for li in soup.select("#feature-bullets li"):
-        t = li.get_text(" ", strip=True)
-        if t and "Click to" not in t and "This fits your" not in t:
-            bullets.append(t)
+    # ✅ Bullets
+    bullets = [b.strip() for b in data.get("feature_bullets", [])]
     bullets = bullets[:10]
 
-    # Meta (brand/colour)
-    meta = {}
-    for li in soup.select("#detailBullets_feature_div li"):
-        text = li.get_text(" ", strip=True)
-        if ":" in text:
-            k, v = text.split(":", 1)
-            meta[k.strip()] = v.strip()
+    # ✅ Meta
+    meta = {
+        "Brand": data.get("brand", ""),
+        "Colour": data.get("color", "")
+    }
+
+    # ✅ Zdjęcia – szybkie, główna galeria (bez opinii!)
+    images = []
+    for img in data.get("images", []):
+        full = img.get("hiRes") or img.get("large")
+        if full and full.startswith("https"):
+            images.append(full)
+    images = images[:12]
 
     return {
         "title": title,
