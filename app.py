@@ -38,66 +38,66 @@ def extract_highres_images(html: str) -> list:
     return out[:12]
 
 def fetch_amazon(url_or_asin):
-    SCRAPER_API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
+    API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
 
     url_or_asin = url_or_asin.strip()
+
     if "amazon" not in url_or_asin:
-        url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
+        amazon_url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
     else:
-        url = url_or_asin
+        amazon_url = url_or_asin.split("?")[0]
 
-    # ✅ wymuszamy wersję mobilną (mniej blokad, pełne zdjęcia)
-    url = url.replace("www.amazon.", "m.amazon.")
-
-    # ✅ ScraperAPI usuwa blokady Amazon
-    r = requests.get(
-        "https://api.scraperapi.com",
-        params={
-            "api_key": SCRAPER_API_KEY,
-            "url": url
-        },
-        timeout=25
+    # ✅ ScraperAPI (render=true = pełna strona, brak captcha)
+    url = (
+        "https://api.scraperapi.com?"
+        f"api_key={API_KEY}"
+        f"&url={amazon_url}"
+        "&render=true"
     )
 
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/123.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-GB,en;q=0.9",
+        "Referer": "https://www.google.com/"
+    }
+
+    r = requests.get(url, headers=headers, timeout=30)
     html = r.text
     soup = BeautifulSoup(html, "html.parser")
 
-    # ✅ Tytuł
-    title_tag = soup.select_one("h1#title, span#productTitle, h1 span")
+    # ✅ Title
+    title_tag = soup.find("span", {"id": "productTitle"})
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
-    # ✅ Zdjęcia (mobilne są czyste i wysokiej jakości)
-    images = []
-    for img in soup.select("img[src*='images/I/']"):
-        u = img.get("src", "")
-        if u.endswith((".jpg", ".jpeg", ".png", ".webp")):
-            images.append(u)
+    # ✅ Images (best quality)
+    images = extract_highres_images(html)
     images = list(dict.fromkeys(images))[:12]
 
     # ✅ Bullets
     bullets = []
-    for li in soup.select("#feature-bullets li, li span.a-list-item"):
+    for li in soup.select("#feature-bullets li"):
         t = li.get_text(" ", strip=True)
-        if t and "Click to" not in t and "This fits" not in t:
+        if t and "Click to" not in t and "This fits your" not in t:
             bullets.append(t)
     bullets = bullets[:10]
 
-    # ✅ Brand & Colour
+    # ✅ Meta
     meta = {}
-    for li in soup.select("#detailBullets_feature_div li, tr"):
-        text = " ".join(li.get_text(" ", strip=True).split())
+    for li in soup.select("#detailBullets_feature_div li"):
+        text = li.get_text(" ", strip=True)
         if ":" in text:
             k, v = text.split(":", 1)
             meta[k.strip()] = v.strip()
-
-    brand = meta.get("Brand", "")
-    colour = meta.get("Colour", "") or meta.get("Color", "")
 
     return {
         "title": title,
         "images": images,
         "bullets": bullets,
-        "meta": {"Brand": brand, "Colour": colour}
+        "meta": meta
     }
 
 def generate_listing_text(title, meta, bullets):
