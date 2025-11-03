@@ -46,22 +46,26 @@ def fetch_amazon(url_or_asin):
     if "amazon" not in url_or_asin:
         amazon_url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
     else:
-        amazon_url = url_or_asin
-
-    # ScraperAPI proxy URL
-    url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&keep_headers=true"
+        amazon_url = url_or_asin.split("?")[0]
 
     headers = {
         "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/123.0 Safari/537.36"
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+            "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+            "Version/17.0 Mobile/15E148 Safari/604.1"
         ),
         "Accept-Language": "en-GB,en;q=0.9",
     }
 
-    r = requests.get(url, headers=headers, timeout=30)
+    # --- TRY NORMAL FIRST (FAST) ---
+    r = requests.get(amazon_url, headers=headers, timeout=10)
     html = r.text
+
+    if "productTitle" not in html:  # 🔥 Amazon blocked us → fallback
+        url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}"
+        r = requests.get(url, headers=headers, timeout=20)
+        html = r.text
+
     soup = BeautifulSoup(html, "html.parser")
 
     # Title
