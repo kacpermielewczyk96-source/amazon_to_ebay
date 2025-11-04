@@ -38,24 +38,19 @@ def extract_highres_images(html: str):
     # limit maksymalnie 12
     return urls[:12]
 
-import os, time, json
+import redis
+import json
 from hashlib import md5
 
-CACHE_DIR = "cache"
-os.makedirs(CACHE_DIR, exist_ok=True)
+redis_url = "redis://red-d44mcfkhg0os73fhhepg:6379"   # <- TWÓJ URL z Render
+rdb = redis.Redis.from_url(redis_url, decode_responses=True)
 
 def cache_load(key):
-    path = os.path.join(CACHE_DIR, key + ".json")
-    if not os.path.exists(path):
-        return None
-    # 7 dni
-    if time.time() - os.path.getmtime(path) > 7 * 24 * 60 * 60:
-        return None
-    return json.load(open(path, "r"))
+    data = rdb.get(key)
+    return json.loads(data) if data else None
 
 def cache_save(key, data):
-    path = os.path.join(CACHE_DIR, key + ".json")
-    json.dump(data, open(path, "w"))
+    rdb.set(key, json.dumps(data), ex=60*60*24*7)  # cache na 7 dni
 
 def fetch_amazon(url_or_asin):
     API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
