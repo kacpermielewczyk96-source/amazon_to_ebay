@@ -133,7 +133,7 @@ def generate_listing_text(title, meta, bullets):
 
     # Tytuł
     lines.append(title)
-    lines.append("")  # odstęp
+    lines.append("")
 
     # Brand / Colour
     if brand or colour:
@@ -141,38 +141,6 @@ def generate_listing_text(title, meta, bullets):
             lines.append(f"Brand: {brand}")
         if colour:
             lines.append(f"Colour: {colour}")
-        lines.append("")  # odstęp
-
-    # Key Features
-    if bullets:
-        lines.append("✨ Key Features")
-        lines.append("")  # odstęp
-        for b in bullets[:10]:
-            b = re.sub(r"\[[^\]]+\]", "", b).strip()
-            lines.append(f"⚫️ {b}")
-            lines.append("")  # ✅ PRZERWA po każdej linii
-
-    # Stopka
-    lines.append("📦 Fast Dispatch from UK | 🚚 Tracked Delivery Included")
-
-    return "\n".join(lines) + "\n"  # ✅ dodatkowy enter na końcu
-
-def generate_listing_text(title, meta, bullets):
-    brand = meta.get("Brand", "")
-    colour = meta.get("Colour", "")
-
-    lines = []
-
-    # Tytuł
-    lines.append(title)
-    lines.append("")
-
-    # Podstawowe dane
-    if brand or colour:
-        if brand:
-            lines.append(f"Brand: {brand}")
-        if colour:
-            lines.append(f"Colour: {colour}")
         lines.append("")
 
     # Key Features
@@ -182,12 +150,14 @@ def generate_listing_text(title, meta, bullets):
         for b in bullets[:10]:
             b = re.sub(r"\[[^\]]+\]", "", b).strip()
             lines.append(f"⚫️ {b}")
-        lines.append("")
+            lines.append("")  # ✅ PRZERWA między punktami
 
     # Stopka
     lines.append("📦 Fast Dispatch from UK   |   🚚 Tracked Delivery Included")
+    lines.append("")  # ✅ dodatkowa przerwa na koniec
 
     return "\n".join(lines)
+
 
 @app.route("/")
 def index():
