@@ -39,80 +39,54 @@ def extract_highres_images(html: str):
     return urls[:12]
 
 def fetch_amazon(url_or_asin):
-    API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
-
     url_or_asin = url_or_asin.strip().upper()
 
+    # Wyciąganie ASIN
     if "amazon" not in url_or_asin:
         asin = url_or_asin
     else:
-        asin = re.search(r"/dp/([A-Z0-9]{8,12})", url_or_asin)
-        asin = asin.group(1) if asin else url_or_asin[-10:]
+        asin_match = re.search(r"/dp/([A-Z0-9]{8,12})", url_or_asin)
+        asin = asin_match.group(1) if asin_match else url_or_asin[-10:]
 
-    # ✅ Szybkie API (JSON)
-    api_url = f"https://www.amazon.co.uk/gp/aod/api/patterns/dp/{asin}"
+    # ✅ Amazon Mobile API (stabilne i szybkie)
+    api_url = f"https://www.amazon.co.uk/-/en/dp/{asin}?ajax=1&mobile-web-api=1"
+
     headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+        "User-Agent": "AmazonMobile/26.0.0 (iPhone; iOS 17)",
         "Accept-Language": "en-GB,en;q=0.9"
     }
 
-    try:
-        r = requests.get(api_url, headers=headers, timeout=5)
-        data = r.json()  # <-- jeśli tu poleci wyjątek → lecimy w fallback
-        title = data.get("title", "").strip()
-        bullets = [b.strip() for b in data.get("feature_bullets", [])][:10]
+    r = requests.get(api_url, headers=headers, timeout=6)
 
-        meta = {
-            "Brand": data.get("brand", ""),
-            "Colour": data.get("color", "")
+    # Jeśli to nie JSON → produkt niedostępny / regionowy
+    try:
+        data = r.json()
+    except:
+        return {
+            "title": "Product Not Found",
+            "images": [],
+            "bullets": [],
+            "meta": {}
         }
 
-        images = []
-        for img in data.get("images", []):
-            full = img.get("hiRes") or img.get("large")
-            if full and full.startswith("http"):
-                images.append(full)
-        images = images[:12]
+    product = data.get("product", {})
 
-        # ✅ Jeśli tytuł istnieje → szybka metoda działa → zwracamy
-        if title:
-            return {
-                "title": title,
-                "images": images,
-                "bullets": bullets,
-                "meta": meta
-            }
+    title = product.get("title", "").strip() or "No title found"
 
-    except:
-        pass  # przechodzimy do fallback
+    bullets = product.get("feature_bullets", [])
+    bullets = [b.strip() for b in bullets][:10]
 
-    # 🔥 FALLBACK → stary scraper przez ScraperAPI
-    amazon_url = f"https://www.amazon.co.uk/dp/{asin}"
-    url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&keep_headers=true"
+    meta = {
+        "Brand": product.get("brand", ""),
+        "Colour": product.get("color", "")
+    }
 
-    r = requests.get(url, headers=headers, timeout=20)
-    html = r.text
-    soup = BeautifulSoup(html, "html.parser")
-
-    title_tag = soup.find("span", {"id": "productTitle"})
-    title = title_tag.get_text(strip=True) if title_tag else "No title found"
-
-    images = extract_highres_images(html)
-    images = list(dict.fromkeys(images))[:12]
-
-    bullets = []
-    for li in soup.select("#feature-bullets li"):
-        t = li.get_text(" ", strip=True)
-        if t and "Click to" not in t and "This fits your" not in t:
-            bullets.append(t)
-    bullets = bullets[:10]
-
-    meta = {}
-    for li in soup.select("#detailBullets_feature_div li"):
-        text = li.get_text(" ", strip=True)
-        if ":" in text:
-            k, v = text.split(":", 1)
-            meta[k.strip()] = v.strip()
+    images = []
+    for img in product.get("images", []):
+        u = img.get("hiRes") or img.get("large")
+        if u and u.startswith("http"):
+            images.append(u)
+    images = images[:12]
 
     return {
         "title": title,
