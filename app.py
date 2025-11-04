@@ -19,42 +19,40 @@ def truncate_title_80(s: str) -> str:
         cut = cut[:cut.rfind(" ")].rstrip()
     return cut
 
+dimport json
+import re
+
 def extract_highres_images(html: str):
-    import json
     urls = []
 
-    # 1) high resolution from script blocks
+    # 1) Szukanie hiRes (jeśli istnieje — czasem nie ma)
     for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
         u = m.group(1).replace("\\u0026", "&")
         urls.append(u)
 
+    # 2) Szukanie large (też może nie być)
     for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
         u = m.group(1).replace("\\u0026", "&")
         if u not in urls:
             urls.append(u)
 
-    # 2) data-old-hires (główne zdjęcie bardzo często tu jest)
-    for m in re.finditer(r'data-old-hires="([^"]+)"', html):
-        u = m.group(1).replace("\\u0026", "&")
-        if u not in urls:
-            urls.append(u)
-
-    # 3) Fallback: dynamic-image (działa zawsze!)
+    # ✅ 3) Najważniejsze: dynamiczne zdjęcia (działa zawsze)
     dyn = re.search(r'data-a-dynamic-image="({.*?})"', html)
     if dyn:
         try:
-            img_dict = json.loads(dyn.group(1).replace("&quot;", '"'))
-            for img_url in img_dict.keys():
+            block = dyn.group(1).replace("&quot;", '"')
+            obj = json.loads(block)
+            for img_url in obj.keys():
                 if any(img_url.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]):
-                    if img_url not in urls:
-                        urls.append(img_url)
+                    urls.append(img_url)
         except:
             pass
 
-    # 4) Odrzucamy miniatury Amazon typu ..._SX342_.jpg
+    # Usuwamy miniatury typu _AC_SX342_.jpg
     urls = [u for u in urls if not re.search(r'\._[^.]+\.', u)]
 
-    return urls[:12]
+    # Unikalne + max 12
+    return list(dict.fromkeys(urls))[:12]
 
 import redis
 import json
