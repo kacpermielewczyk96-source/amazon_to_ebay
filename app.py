@@ -76,13 +76,24 @@ def fetch_amazon(url_or_asin):
         "Referer": "https://www.google.com/"
     }
 
-    # 1️⃣ Szybka próba bez render
-    r = requests.get(amazon_url, headers=HEADERS, timeout=12)
+    # 1️⃣ iPhone UA (szybko)
+    r = requests.get(amazon_url, headers=HEADERS, timeout=10)
     html = r.text
     soup = BeautifulSoup(html, "html.parser")
     title_tag = soup.find("span", {"id": "productTitle"})
 
-    # 2️⃣ Jak Amazon blokuje → użyjemy ScraperAPI (oszczędnie)
+    # 2️⃣ Android UA (druga szybka próba)
+    if not title_tag:
+        HEADERS2 = {
+            "User-Agent": "Mozilla/5.0 (Linux; Android 13; SM-G996B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0 Mobile Safari/537.36",
+            "Accept-Language": "en-GB,en;q=0.9"
+        }
+        r = requests.get(amazon_url, headers=HEADERS2, timeout=10)
+        html = r.text
+        soup = BeautifulSoup(html, "html.parser")
+        title_tag = soup.find("span", {"id": "productTitle"})
+
+    # 3️⃣ Jak nadal blokuje → dopiero wtedy wolny render
     if not title_tag:
         url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&render=true"
         r = requests.get(url, timeout=25)
