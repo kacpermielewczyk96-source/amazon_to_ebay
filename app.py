@@ -5,9 +5,32 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import unquote
 import zipfile
+import json
+import os
 from datetime import datetime
 
 app = Flask(__name__)
+
+CACHE_FILE = "cache.json"
+CACHE_TTL = 7 * 24 * 60 * 60  # 7 dni w sekundach
+
+
+def load_cache():
+    if not os.path.exists(CACHE_FILE):
+        return {}
+    try:
+        with open(CACHE_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {}
+
+
+def save_cache(cache):
+    with open(CACHE_FILE, "w") as f:
+        json.dump(cache, f)
+
+
+cache = load_cache()
 
 def truncate_title_80(s: str) -> str:
     s = (s or "").strip()
@@ -41,54 +64,35 @@ def extract_highres_images(html: str):
 def fetch_amazon(url_or_asin):
     url_or_asin = url_or_asin.strip().upper()
 
-    # Extract ASIN
+    # Wyciągamy ASIN
     if "AMAZON" not in url_or_asin:
         asin = url_or_asin
     else:
-        m = re.search(r"/dp/([A-Z0-9]{8,12})", url_or_asin)
-        asin = m.group(1) if m else url_or_asin[-10:]
+        match = re.search(r"/dp/([A-Z0-9]{8,12})", url_or_asin)
+        asin = match.group(1) if match else url_or_asin[-10:]
 
-    headers = {
-        "User-Agent": "AmazonMobile/26.0.0 (iPhone; iOS 17)",
-        "Accept-Language": "en-GB,en;q=0.9"
-    }
+    # ✅ SPRAWDZAMY CACHE
+    now = int(datetime.now().timestamp())
+    if asin in cache:
+        if now - cache[asin]["time"] < CACHE_TTL:
+            print("✅ CACHE HIT →", asin)
+            return cache[asin]["data"]
+        else:
+            print("⚠️ CACHE EXPIRED → odświeżamy", asin)
 
-    # 🔥 Szybkie źródło JSON (bardzo stabilne dla UK produktów)
-    api_url = f"https://www.amazon.co.uk/-/en/dp/{asin}?ajax=1&mobile-web-api=1"
+    print("⏳ Fetching from Amazon →", asin)
 
-    try:
-        r = requests.get(api_url, headers=headers, timeout=3)
-        data = r.json()
-
-        product = data.get("product", {})
-        title = product.get("title", "").strip()
-
-        if title:
-            bullets = [b.strip() for b in product.get("feature_bullets", [])][:10]
-            meta = {
-                "Brand": product.get("brand", ""),
-                "Colour": product.get("color", "")
-            }
-            images = []
-            for img in product.get("images", []):
-                u = img.get("hiRes") or img.get("large")
-                if u and u.startswith("http"):
-                    images.append(u)
-            return {
-                "title": title,
-                "images": images[:12],
-                "bullets": bullets,
-                "meta": meta
-            }
-    except:
-        pass
-
-    # 🟡 Fallback → ScraperAPI (zawsze działa, wolniejszy tylko 1x)
+    # ---------- TU JEST TWÓJ AKTUALNY SCRAPER ----------
     API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
     amazon_url = f"https://www.amazon.co.uk/dp/{asin}"
     url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&keep_headers=true"
 
-    r = requests.get(url, headers=headers, timeout=10)
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept-Language": "en-GB,en;q=0.9",
+    }
+
+    r = requests.get(url, headers=headers, timeout=20)
     html = r.text
     soup = BeautifulSoup(html, "html.parser")
 
@@ -112,12 +116,13 @@ def fetch_amazon(url_or_asin):
             k, v = text.split(":", 1)
             meta[k.strip()] = v.strip()
 
-    return {
-        "title": title,
-        "images": images,
-        "bullets": bullets,
-        "meta": meta
-    }
+    result = {"title": title, "images": images, "bullets": bullets, "meta": meta}
+
+    # ✅ ZAPISUJEMY DO CACHE
+    cache[asin] = {"time": now, "data": result}
+    save_cache(cache)
+
+    return result
 
 def generate_listing_text(title, meta, bullets):
     brand = meta.get("Brand", "")
