@@ -1,4 +1,4 @@
- from flask import Flask, render_template, request, send_file, Response
+from flask import Flask, render_template, request, send_file, Response
 from io import BytesIO
 import re
 import requests
