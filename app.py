@@ -180,6 +180,7 @@ def index():
 def scrape():
     url = request.form.get("url", "").strip()
     data = fetch_amazon(url)
+    print("IMAGES FOUND:", data["images"]) 
 
     listing_text = generate_listing_text(data["title"], data["meta"], data["bullets"])
 
