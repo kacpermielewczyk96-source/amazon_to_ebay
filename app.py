@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file, Response
+ from flask import Flask, render_template, request, send_file, Response
 from io import BytesIO
 import re
 import requests
@@ -21,95 +21,52 @@ def truncate_title_80(s: str) -> str:
 def extract_highres_images(html: str):
     urls = []
 
-    # 1) hiRes
+    # ✅ Pobieramy tylko zdjęcia z głównej galerii (hiRes / large)
     for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
         u = m.group(1).replace("\\u0026", "&")
-        urls.append(u)
-
-    # 2) large
-    for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
-        u = m.group(1).replace("\\u0026", "&")
-        if u not in urls:
+        if u.endswith((".jpg", ".jpeg", ".png", ".webp")):
             urls.append(u)
 
-    # ✅ 3) Fallback - dynamic images (działa zawsze)
-    dyn = re.search(r'data-a-dynamic-image="({[^"]+})"', html)
-    if dyn:
-        block = dyn.group(1).replace("&quot;", '"')
-        try:
-            obj = json.loads(block)
-            for img_url in obj.keys():
-                if any(img_url.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]):
-                    if img_url not in urls:
-                        urls.append(img_url)
-        except:
-            pass
+    for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
+        u = m.group(1).replace("\\u0026", "&")
+        if u.endswith((".jpg", ".jpeg", ".png", ".webp")) and u not in urls:
+            urls.append(u)
 
-    # Usuń miniatury Amazona (np. ...._AC_SX342_.jpg)
-    urls = [u for u in urls if not re.search(r'\._[^.]+\.', u)]
+    # ✅ ŻADNYCH zdjęć z recenzji / miniaturek
+    # → więc nie dodajemy nic z soup.select("img...")
 
+    # limit maksymalnie 12
     return urls[:12]
-
-import redis
-import json
-from hashlib import md5
-
-redis_url = "redis://red-d44mcfkhg0os73fhhepg:6379"   # <- TWÓJ URL z Render
-rdb = redis.Redis.from_url(redis_url, decode_responses=True)
-
-def cache_load(key):
-    data = rdb.get(key)
-    return json.loads(data) if data else None
-
-def cache_save(key, data):
-    rdb.set(key, json.dumps(data), ex=60*60*24*7)  # cache na 7 dni
 
 def fetch_amazon(url_or_asin):
     API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
 
-    url_or_asin = url_or_asin.strip().upper()
-    asin = re.sub(r".*?/DP/([A-Z0-9]{8,14}).*", r"\1", url_or_asin)
+    url_or_asin = url_or_asin.strip()
 
-    cache_key = md5(asin.encode()).hexdigest()
-    cached = cache_load(cache_key)
-    if cached:
-        return cached
+    if "amazon" not in url_or_asin:
+        amazon_url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
+    else:
+        amazon_url = url_or_asin.split("?")[0]
 
-    amazon_url = f"https://www.amazon.co.uk/dp/{asin}"
-
-    HEADERS = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Mobile/15E148 Safari/604.1",
-        "Accept-Language": "en-GB,en;q=0.9",
-        "Referer": "https://www.google.com/"
-    }
-
-    # 1️⃣ Szybka próba bez render
-    r = requests.get(amazon_url, headers=HEADERS, timeout=12)
-    html = r.text
-    soup = BeautifulSoup(html, "html.parser")
-    title_tag = soup.select_one("#productTitle, span#productTitle, h1 span")
-
-    # 2️⃣ Druga próba innym UA (Nadal 0 kredytów)
-    if not title_tag:
-        HEADERS2 = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/123.0 Safari/537.36",
-            "Accept-Language": "en-GB,en;q=0.9"
-        }
-        r = requests.get(amazon_url, headers=HEADERS2, timeout=12)
-        html = r.text
-        soup = BeautifulSoup(html, "html.parser")
-        title_tag = soup.select_one("#productTitle, span#productTitle, h1 span")
-
-    # 3️⃣ Dopiero jeśli OBIE próby zawiodą → ScraperAPI (tu zaczyna się liczyć kredyt)
-    if not title_tag:
-        url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&render=true"
+    def fetch(render=False):
+        url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}"
+        if render:
+            url += "&render=true"
         r = requests.get(url, timeout=25)
-        html = r.text
-        soup = BeautifulSoup(html, "html.parser")
+        return r.text
 
-    title = soup.find("span", {"id": "productTitle"})
-    title = title.get_text(strip=True) if title else "No title found"
+    # 1️⃣ SZYBKA PRÓBA (bez render = 1–2 sek)
+    html = fetch(render=False)
+    soup = BeautifulSoup(html, "html.parser")
+    title_tag = soup.find("span", {"id": "productTitle"})
+
+    # 2️⃣ JEŚLI AMAZON ZABLOKUJE → PRZEŁĄCZENIE NA RENDER
+    if not title_tag:
+        html = fetch(render=True)
+        soup = BeautifulSoup(html, "html.parser")
+        title_tag = soup.find("span", {"id": "productTitle"})
+
+    title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
     images = extract_highres_images(html)
     images = list(dict.fromkeys(images))[:12]
@@ -117,7 +74,7 @@ def fetch_amazon(url_or_asin):
     bullets = []
     for li in soup.select("#feature-bullets li"):
         t = li.get_text(" ", strip=True)
-        if t and "Click to" not in t and "fits your" not in t:
+        if t and "Click to" not in t and "This fits your" not in t:
             bullets.append(t)
     bullets = bullets[:10]
 
@@ -128,15 +85,14 @@ def fetch_amazon(url_or_asin):
             k, v = text.split(":", 1)
             meta[k.strip()] = v.strip()
 
-    result = {
+    return {
         "title": title,
         "images": images,
         "bullets": bullets,
         "meta": meta
     }
 
-    cache_save(cache_key, result)
-    return result
+
 
 def generate_listing_text(title, meta, bullets):
     brand = meta.get("Brand", "")
@@ -148,7 +104,7 @@ def generate_listing_text(title, meta, bullets):
     lines.append(title)
     lines.append("")
 
-    # Brand / Colour
+    # Podstawowe dane
     if brand or colour:
         if brand:
             lines.append(f"Brand: {brand}")
@@ -163,14 +119,12 @@ def generate_listing_text(title, meta, bullets):
         for b in bullets[:10]:
             b = re.sub(r"\[[^\]]+\]", "", b).strip()
             lines.append(f"⚫️ {b}")
-            lines.append("")  # ✅ PRZERWA między punktami
+        lines.append("")
 
     # Stopka
     lines.append("📦 Fast Dispatch from UK   |   🚚 Tracked Delivery Included")
-    lines.append("")  # ✅ dodatkowa przerwa na koniec
 
     return "\n".join(lines)
-
 
 @app.route("/")
 def index():
@@ -180,7 +134,6 @@ def index():
 def scrape():
     url = request.form.get("url", "").strip()
     data = fetch_amazon(url)
-    print("IMAGES FOUND:", data["images"]) 
 
     listing_text = generate_listing_text(data["title"], data["meta"], data["bullets"])
 
