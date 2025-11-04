@@ -7,6 +7,7 @@ from urllib.parse import unquote
 import zipfile
 from datetime import datetime
 import json
+import html as html_unescape  # do odkodowania &quot; itp.
 
 app = Flask(__name__)
 
@@ -19,41 +20,86 @@ def truncate_title_80(s: str) -> str:
         cut = cut[:cut.rfind(" ")].rstrip()
     return cut
 
-dimport json
+import json
 import re
+
+import re
+import json
 
 def extract_highres_images(html: str):
     urls = []
 
-    # 1) Szukanie hiRes (jeśli istnieje — czasem nie ma)
-    for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
-        u = m.group(1).replace("\\u0026", "&")
-        urls.append(u)
+    print("IMAGES FOUND:", len(images))
+    if images[:3]:
+        print("SAMPLE:", images[:3])
 
-    # 2) Szukanie large (też może nie być)
-    for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
-        u = m.group(1).replace("\\u0026", "&")
-        if u not in urls:
+    # --- wariant 0: czasem response ma encje HTML (Render/Scraper) ---
+    # spróbujmy też na odkodowanej wersji
+    try:
+        from html import unescape as _unescape
+        html_u = _unescape(html)
+    except:
+        html_u = html
+
+    def add(u):
+        if u and any(u.lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp")):
             urls.append(u)
 
-    # ✅ 3) Najważniejsze: dynamiczne zdjęcia (działa zawsze)
-    dyn = re.search(r'data-a-dynamic-image="({.*?})"', html)
-    if dyn:
-        try:
-            block = dyn.group(1).replace("&quot;", '"')
-            obj = json.loads(block)
-            for img_url in obj.keys():
-                if any(img_url.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]):
-                    urls.append(img_url)
-        except:
-            pass
+    # --- wariant 1: hiRes ---
+    for h in (html, html_u):
+        for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', h):
+            add(m.group(1).replace("\\u0026", "&"))
 
-    # Usuwamy miniatury typu _AC_SX342_.jpg
+    # --- wariant 2: large ---
+    for h in (html, html_u):
+        for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', h):
+            u = m.group(1).replace("\\u0026", "&")
+            if u not in urls:
+                add(u)
+
+    # --- wariant 3: data-a-dynamic-image (najpewniejszy) ---
+    for h in (html, html_u):
+        m = re.search(r'data-a-dynamic-image\s*=\s*"({.*?})"', h)
+        if not m:
+            m = re.search(r"data-a-dynamic-image\s*=\s*'({.*?})'", h)
+        if m:
+            try:
+                block = m.group(1).replace("&quot;", '"')
+                obj = json.loads(block)
+                for u in obj.keys():
+                    add(u)
+            except:
+                pass
+
+    # --- wariant 4: JSON w skryptach (colorImages / imageGalleryData / ImageBlockATF) ---
+    for h in (html, html_u):
+        for key in ("colorImages", "imageGalleryData", "ImageBlockATF"):
+            m = re.search(rf'"{key}"\s*:\s*(\{{.*?\}}|\[.*?\])', h, re.S)
+            if m:
+                try:
+                    data = json.loads(m.group(1))
+                    # próbujemy różnych struktur
+                    candidates = []
+                    if isinstance(data, dict):
+                        for v in data.values():
+                            if isinstance(v, list):
+                                candidates.extend(v)
+                            elif isinstance(v, dict):
+                                candidates.extend(v.get("initial", []))
+                    elif isinstance(data, list):
+                        candidates = data
+                    for item in candidates:
+                        for k in ("hiRes", "large", "mainUrl", "thumbUrl", "displayImage"):
+                            u = item.get(k) if isinstance(item, dict) else None
+                            if u:
+                                add(str(u))
+                except:
+                    pass
+
+    # usuń miniatury Amazona (np. ...._AC_SX342_.jpg)
     urls = [u for u in urls if not re.search(r'\._[^.]+\.', u)]
-
-    # Unikalne + max 12
+    # unikalne + max 12
     return list(dict.fromkeys(urls))[:12]
-
 import redis
 import json
 from hashlib import md5
@@ -85,8 +131,8 @@ def fetch_amazon(url_or_asin):
     url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&render=true"
     r = requests.get(url, timeout=25)
 
-    html = r.text
-    print("HTML length:", len(html))  # ✅ debug
+    raw = r.text
+    html = html_unescape.unescape(raw)  # << ważne
     soup = BeautifulSoup(html, "html.parser")
 
     title_tag = soup.find("span", {"id": "productTitle"})
