@@ -39,57 +39,48 @@ def extract_highres_images(html: str):
     return urls[:12]
 
 def fetch_amazon(url_or_asin):
-    API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
+    url_or_asin = url_or_asin.strip().upper()
 
-    url_or_asin = url_or_asin.strip()
+    # Wyciągamy ASIN
+    asin_match = re.search(r"/dp/([A-Z0-9]{8,12})", url_or_asin)
+    asin = asin_match.group(1) if asin_match else url_or_asin[-10:]
 
-    if "amazon" not in url_or_asin:
-        amazon_url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
-    else:
-        amazon_url = url_or_asin.split("?")[0]
+    headers = {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+        "Accept-Language": "en-GB,en;q=0.9"
+    }
 
-    def fetch(render=False):
-        url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}"
-        if render:
-            url += "&render=true"
-        r = requests.get(url, timeout=25)
-        return r.text
+    # Tytuł, zdjęcia, brand, kolor
+    r = requests.get(
+        f"https://www.amazon.co.uk/gp/aod/api/patterns/dp/{asin}",
+        headers=headers, timeout=8
+    )
+    data = r.json()
 
-    # 1️⃣ SZYBKA PRÓBA (bez render = 1–2 sek)
-    html = fetch(render=False)
-    soup = BeautifulSoup(html, "html.parser")
-    title_tag = soup.find("span", {"id": "productTitle"})
+    title = data.get("title", "").strip()
+    brand = data.get("brand", "")
+    colour = data.get("color", "")
 
-    # 2️⃣ JEŚLI AMAZON ZABLOKUJE → PRZEŁĄCZENIE NA RENDER
-    if not title_tag:
-        html = fetch(render=True)
-        soup = BeautifulSoup(html, "html.parser")
-        title_tag = soup.find("span", {"id": "productTitle"})
+    images = []
+    for img in data.get("images", []):
+        full = img.get("hiRes") or img.get("large")
+        if full:
+            images.append(full)
+    images = images[:12]
 
-    title = title_tag.get_text(strip=True) if title_tag else "No title found"
-
-    images = extract_highres_images(html)
-    images = list(dict.fromkeys(images))[:12]
-
-    bullets = []
-    for li in soup.select("#feature-bullets li"):
-        t = li.get_text(" ", strip=True)
-        if t and "Click to" not in t and "This fits your" not in t:
-            bullets.append(t)
-    bullets = bullets[:10]
-
-    meta = {}
-    for li in soup.select("#detailBullets_feature_div li"):
-        text = li.get_text(" ", strip=True)
-        if ":" in text:
-            k, v = text.split(":", 1)
-            meta[k.strip()] = v.strip()
+    # Bullets
+    r2 = requests.get(
+        f"https://www.amazon.co.uk/afx/async/pep/getJustifiedFeatures?asin={asin}&deviceType=web",
+        headers=headers, timeout=8
+    )
+    bullets_json = r2.json()
+    bullets = bullets_json.get("features", [])[:10]
 
     return {
-        "title": title,
+        "title": title or "No title found",
         "images": images,
         "bullets": bullets,
-        "meta": meta
+        "meta": {"Brand": brand, "Colour": colour}
     }
 
 def generate_listing_text(title, meta, bullets):
