@@ -48,35 +48,29 @@ def fetch_amazon(url_or_asin):
     else:
         amazon_url = url_or_asin.split("?")[0]
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-            "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-            "Version/17.0 Mobile/15E148 Safari/604.1"
-        ),
-        "Accept-Language": "en-GB,en;q=0.9",
-    }
-
-    # --- TRY NORMAL FIRST (FAST) ---
-    r = requests.get(amazon_url, headers=headers, timeout=10)
-    html = r.text
-
-    if "productTitle" not in html:  # 🔥 Amazon blocked us → fallback
+    def fetch(render=False):
         url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}"
-        r = requests.get(url, headers=headers, timeout=20)
-        html = r.text
+        if render:
+            url += "&render=true"
+        r = requests.get(url, timeout=25)
+        return r.text
 
+    # 1️⃣ SZYBKA PRÓBA (bez render = 1–2 sek)
+    html = fetch(render=False)
     soup = BeautifulSoup(html, "html.parser")
-
-    # Title
     title_tag = soup.find("span", {"id": "productTitle"})
+
+    # 2️⃣ JEŚLI AMAZON ZABLOKUJE → PRZEŁĄCZENIE NA RENDER
+    if not title_tag:
+        html = fetch(render=True)
+        soup = BeautifulSoup(html, "html.parser")
+        title_tag = soup.find("span", {"id": "productTitle"})
+
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
-    # Images
     images = extract_highres_images(html)
     images = list(dict.fromkeys(images))[:12]
 
-    # Bullets
     bullets = []
     for li in soup.select("#feature-bullets li"):
         t = li.get_text(" ", strip=True)
@@ -84,7 +78,6 @@ def fetch_amazon(url_or_asin):
             bullets.append(t)
     bullets = bullets[:10]
 
-    # Meta
     meta = {}
     for li in soup.select("#detailBullets_feature_div li"):
         text = li.get_text(" ", strip=True)
