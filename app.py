@@ -21,33 +21,33 @@ def truncate_title_80(s: str) -> str:
 def extract_highres_images(html: str):
     urls = []
 
-    # 1) Najwyższa jakość - hiRes
+    # 1) hiRes
     for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
         u = m.group(1).replace("\\u0026", "&")
         urls.append(u)
 
-    # 2) Jakość large
+    # 2) large
     for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
         u = m.group(1).replace("\\u0026", "&")
         if u not in urls:
             urls.append(u)
 
-    # 3) Amazon fallback — data-a-dynamic-image (najważniejsze!)
-    for m in re.finditer(r'data-a-dynamic-image="({[^"]+})"', html):
-        json_block = m.group(1).replace("&quot;", '"')
+    # ✅ 3) Fallback - dynamic images (działa zawsze)
+    dyn = re.search(r'data-a-dynamic-image="({[^"]+})"', html)
+    if dyn:
+        block = dyn.group(1).replace("&quot;", '"')
         try:
-            obj = json.loads(json_block)
-            for k in obj.keys():
-                if any(k.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]):
-                    if k not in urls:
-                        urls.append(k)
+            obj = json.loads(block)
+            for img_url in obj.keys():
+                if any(img_url.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]):
+                    if img_url not in urls:
+                        urls.append(img_url)
         except:
             pass
 
-    # 4) Usuń miniatury Amazona (_SX, _UX, itp.)
+    # Usuń miniatury Amazona (np. ...._AC_SX342_.jpg)
     urls = [u for u in urls if not re.search(r'\._[^.]+\.', u)]
 
-    # 5) Ogranicz do 12
     return urls[:12]
 
 import redis
