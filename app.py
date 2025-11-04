@@ -38,35 +38,59 @@ def extract_highres_images(html: str):
     # limit maksymalnie 12
     return urls[:12]
 
+import os, time, json
+from hashlib import md5
+
+CACHE_DIR = "cache"
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+def cache_load(key):
+    path = os.path.join(CACHE_DIR, key + ".json")
+    if not os.path.exists(path):
+        return None
+    # 7 dni
+    if time.time() - os.path.getmtime(path) > 7 * 24 * 60 * 60:
+        return None
+    return json.load(open(path, "r"))
+
+def cache_save(key, data):
+    path = os.path.join(CACHE_DIR, key + ".json")
+    json.dump(data, open(path, "w"))
+
 def fetch_amazon(url_or_asin):
     API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
 
-    url_or_asin = url_or_asin.strip()
+    url_or_asin = url_or_asin.strip().upper()
+    asin = re.sub(r".*?/DP/([A-Z0-9]{8,14}).*", r"\1", url_or_asin)
 
-    if "amazon" not in url_or_asin:
-        amazon_url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
-    else:
-        amazon_url = url_or_asin.split("?")[0]
+    cache_key = md5(asin.encode()).hexdigest()
+    cached = cache_load(cache_key)
+    if cached:
+        return cached
 
-    def fetch(render=False):
-        url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}"
-        if render:
-            url += "&render=true"
-        r = requests.get(url, timeout=25)
-        return r.text
+    amazon_url = f"https://www.amazon.co.uk/dp/{asin}"
 
-    # 1️⃣ SZYBKA PRÓBA (bez render = 1–2 sek)
-    html = fetch(render=False)
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Mobile/15E148 Safari/604.1",
+        "Accept-Language": "en-GB,en;q=0.9",
+        "Referer": "https://www.google.com/"
+    }
+
+    # 1️⃣ Szybka próba bez render
+    r = requests.get(amazon_url, headers=HEADERS, timeout=12)
+    html = r.text
     soup = BeautifulSoup(html, "html.parser")
     title_tag = soup.find("span", {"id": "productTitle"})
 
-    # 2️⃣ JEŚLI AMAZON ZABLOKUJE → PRZEŁĄCZENIE NA RENDER
+    # 2️⃣ Jak Amazon blokuje → użyjemy ScraperAPI (oszczędnie)
     if not title_tag:
-        html = fetch(render=True)
+        url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&render=true"
+        r = requests.get(url, timeout=25)
+        html = r.text
         soup = BeautifulSoup(html, "html.parser")
-        title_tag = soup.find("span", {"id": "productTitle"})
 
-    title = title_tag.get_text(strip=True) if title_tag else "No title found"
+    title = soup.find("span", {"id": "productTitle"})
+    title = title.get_text(strip=True) if title else "No title found"
 
     images = extract_highres_images(html)
     images = list(dict.fromkeys(images))[:12]
@@ -74,7 +98,7 @@ def fetch_amazon(url_or_asin):
     bullets = []
     for li in soup.select("#feature-bullets li"):
         t = li.get_text(" ", strip=True)
-        if t and "Click to" not in t and "This fits your" not in t:
+        if t and "Click to" not in t and "fits your" not in t:
             bullets.append(t)
     bullets = bullets[:10]
 
@@ -85,12 +109,15 @@ def fetch_amazon(url_or_asin):
             k, v = text.split(":", 1)
             meta[k.strip()] = v.strip()
 
-    return {
+    result = {
         "title": title,
         "images": images,
         "bullets": bullets,
         "meta": meta
     }
+
+    cache_save(cache_key, result)
+    return result
 
 def generate_listing_text(title, meta, bullets):
     brand = meta.get("Brand", "")
