@@ -21,21 +21,33 @@ def truncate_title_80(s: str) -> str:
 def extract_highres_images(html: str):
     urls = []
 
-    # ✅ Pobieramy tylko zdjęcia z głównej galerii (hiRes / large)
+    # 1) Najwyższa jakość - hiRes
     for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
         u = m.group(1).replace("\\u0026", "&")
-        if u.endswith((".jpg", ".jpeg", ".png", ".webp")):
-            urls.append(u)
+        urls.append(u)
 
+    # 2) Jakość large
     for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
         u = m.group(1).replace("\\u0026", "&")
-        if u.endswith((".jpg", ".jpeg", ".png", ".webp")) and u not in urls:
+        if u not in urls:
             urls.append(u)
 
-    # ✅ ŻADNYCH zdjęć z recenzji / miniaturek
-    # → więc nie dodajemy nic z soup.select("img...")
+    # 3) Amazon fallback — data-a-dynamic-image (najważniejsze!)
+    for m in re.finditer(r'data-a-dynamic-image="({[^"]+})"', html):
+        json_block = m.group(1).replace("&quot;", '"')
+        try:
+            obj = json.loads(json_block)
+            for k in obj.keys():
+                if any(k.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]):
+                    if k not in urls:
+                        urls.append(k)
+        except:
+            pass
 
-    # limit maksymalnie 12
+    # 4) Usuń miniatury Amazona (_SX, _UX, itp.)
+    urls = [u for u in urls if not re.search(r'\._[^.]+\.', u)]
+
+    # 5) Ogranicz do 12
     return urls[:12]
 
 import redis
