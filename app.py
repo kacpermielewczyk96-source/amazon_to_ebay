@@ -1,49 +1,82 @@
-from flask import Flask, render_template, request, send_file, Response
+ from flask import Flask, render_template, request, send_file, Response
 from io import BytesIO
 import re
-import json
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import unquote
 import zipfile
-import html as html_unescape  # DODAJ TEN IMPORT
+from datetime import datetime
 
 app = Flask(__name__)
 
-API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
-
 def truncate_title_80(s: str) -> str:
     s = (s or "").strip()
-    return s if len(s) <= 80 else s[:s.rfind(" ", 0, 80)]
+    if len(s) <= 80:
+        return s
+    cut = s[:80]
+    if " " in cut:
+        cut = cut[:cut.rfind(" ")].rstrip()
+    return cut
 
-import html as html_unescape  # DODAJ TEN IMPORT
+def extract_highres_images(html: str):
+    urls = []
+
+    # ✅ Pobieramy tylko zdjęcia z głównej galerii (hiRes / large)
+    for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
+        u = m.group(1).replace("\\u0026", "&")
+        if u.endswith((".jpg", ".jpeg", ".png", ".webp")):
+            urls.append(u)
+
+    for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
+        u = m.group(1).replace("\\u0026", "&")
+        if u.endswith((".jpg", ".jpeg", ".png", ".webp")) and u not in urls:
+            urls.append(u)
+
+    # ✅ ŻADNYCH zdjęć z recenzji / miniaturek
+    # → więc nie dodajemy nic z soup.select("img...")
+
+    # limit maksymalnie 12
+    return urls[:12]
+
 def fetch_amazon(url_or_asin):
-    url_or_asin = url_or_asin.strip().upper()
+    API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"
 
-    if "AMAZON" in url_or_asin:
-        asin = re.sub(r".*?/DP/([A-Z0-9]{8,14}).*", r"\1", url_or_asin)
+    url_or_asin = url_or_asin.strip()
+
+    if "amazon" not in url_or_asin:
+        amazon_url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
     else:
-        asin = url_or_asin
+        amazon_url = url_or_asin.split("?")[0]
 
-    amazon_url = f"https://www.amazon.co.uk/dp/{asin}"
+    def fetch(render=False):
+        url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}"
+        if render:
+            url += "&render=true"
+        r = requests.get(url, timeout=25)
+        return r.text
 
-    # **TU JEST MAGIA → zawsze render=true**
-    url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&render=true"
-
-    r = requests.get(url, timeout=30)
-    html = r.text
+    # 1️⃣ SZYBKA PRÓBA (bez render = 1–2 sek)
+    html = fetch(render=False)
     soup = BeautifulSoup(html, "html.parser")
+    title_tag = soup.find("span", {"id": "productTitle"})
 
-    title_tag = soup.select_one("#productTitle, span#productTitle, h1 span")
+    # 2️⃣ JEŚLI AMAZON ZABLOKUJE → PRZEŁĄCZENIE NA RENDER
+    if not title_tag:
+        html = fetch(render=True)
+        soup = BeautifulSoup(html, "html.parser")
+        title_tag = soup.find("span", {"id": "productTitle"})
+
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
     images = extract_highres_images(html)
+    images = list(dict.fromkeys(images))[:12]
 
     bullets = []
     for li in soup.select("#feature-bullets li"):
         t = li.get_text(" ", strip=True)
         if t and "Click to" not in t and "This fits your" not in t:
             bullets.append(t)
+    bullets = bullets[:10]
 
     meta = {}
     for li in soup.select("#detailBullets_feature_div li"):
@@ -52,25 +85,45 @@ def fetch_amazon(url_or_asin):
             k, v = text.split(":", 1)
             meta[k.strip()] = v.strip()
 
-    return {"title": title, "images": images, "bullets": bullets[:10], "meta": meta}
+    return {
+        "title": title,
+        "images": images,
+        "bullets": bullets,
+        "meta": meta
+    }
+
+
 
 def generate_listing_text(title, meta, bullets):
     brand = meta.get("Brand", "")
     colour = meta.get("Colour", "")
-    lines = [title, ""]
 
+    lines = []
+
+    # Tytuł
+    lines.append(title)
+    lines.append("")
+
+    # Podstawowe dane
     if brand or colour:
-        if brand: lines.append(f"Brand: {brand}")
-        if colour: lines.append(f"Colour: {colour}")
+        if brand:
+            lines.append(f"Brand: {brand}")
+        if colour:
+            lines.append(f"Colour: {colour}")
         lines.append("")
 
+    # Key Features
     if bullets:
-        lines.append("✨ Key Features\n")
-        for b in bullets:
+        lines.append("✨ Key Features")
+        lines.append("")
+        for b in bullets[:10]:
+            b = re.sub(r"\[[^\]]+\]", "", b).strip()
             lines.append(f"⚫️ {b}")
             lines.append("")
 
-    lines.append("📦 Fast Dispatch from UK   |   🚚 Tracked Delivery Included\n")
+    # Stopka
+    lines.append("📦 Fast Dispatch from UK   |   🚚 Tracked Delivery Included")
+
     return "\n".join(lines)
 
 @app.route("/")
@@ -81,6 +134,7 @@ def index():
 def scrape():
     url = request.form.get("url", "").strip()
     data = fetch_amazon(url)
+
     listing_text = generate_listing_text(data["title"], data["meta"], data["bullets"])
 
     return render_template(
@@ -88,7 +142,7 @@ def scrape():
         title80=truncate_title_80(data["title"]),
         full_title=data["title"],
         images=data["images"],
-        listing_text=listing_text
+        listing_text=listing_text  # ✅ <- teraz jest przekazywany
     )
 
 @app.route("/proxy")
@@ -109,3 +163,4 @@ def download_zip():
 
 if __name__ == "__main__":
     app.run(debug=True, port=8000)
+
