@@ -6,6 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import unquote
 import zipfile
+import html as html_unescape  # DODAJ TEN IMPORT
 
 app = Flask(__name__)
 
@@ -15,37 +16,7 @@ def truncate_title_80(s: str) -> str:
     s = (s or "").strip()
     return s if len(s) <= 80 else s[:s.rfind(" ", 0, 80)]
 
-def extract_highres_images(html: str):
-    urls = []
-
-    # hiRes
-    for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
-        urls.append(m.group(1).replace("\\u0026", "&"))
-
-    # large
-    for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
-        u = m.group(1).replace("\\u0026", "&")
-        if u not in urls:
-            urls.append(u)
-
-    # dynamic-image fallback
-    dyn = re.search(r'data-a-dynamic-image="({[^"]+})"', html)
-    if dyn:
-        block = dyn.group(1).replace("&quot;", '"')
-        try:
-            data = json.loads(block)
-            for u in data:
-                if any(u.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]):
-                    if u not in urls:
-                        urls.append(u)
-        except:
-            pass
-
-    # usuń miniatury Amazona
-    urls = [u for u in urls if not re.search(r'\._[^.]+\.', u)]
-
-    return urls[:12]
-
+import html as html_unescape  # DODAJ TEN IMPORT
 def fetch_amazon(url_or_asin):
     url_or_asin = url_or_asin.strip().upper()
 
@@ -97,7 +68,7 @@ def generate_listing_text(title, meta, bullets):
         lines.append("✨ Key Features\n")
         for b in bullets:
             lines.append(f"⚫️ {b}")
-        lines.append("")
+            lines.append("")
 
     lines.append("📦 Fast Dispatch from UK   |   🚚 Tracked Delivery Included\n")
     return "\n".join(lines)
