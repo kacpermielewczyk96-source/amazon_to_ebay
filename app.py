@@ -1,17 +1,40 @@
-# -*- coding: utf-8 -*-
 from flask import Flask, render_template, request, send_file, Response
 from io import BytesIO
 import re
-import json
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import unquote
 import zipfile
+import json, os
+from hashlib import md5
 
 app = Flask(__name__)
 
-# ----------------- helpers -----------------
+# ======================
+#   CACHE (7 dni)
+# ======================
+CACHE_DIR = "cache"
+os.makedirs(CACHE_DIR, exist_ok=True)
 
+def cache_load(key):
+    path = os.path.join(CACHE_DIR, key + ".json")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return None
+
+def cache_save(key, data):
+    path = os.path.join(CACHE_DIR, key + ".json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+# ======================
+#    TITLE SHORTEN
+# ======================
 def truncate_title_80(s: str) -> str:
     s = (s or "").strip()
     if len(s) <= 80:
@@ -22,144 +45,126 @@ def truncate_title_80(s: str) -> str:
     return cut
 
 
+# ======================
+#   IMAGE EXTRACTOR
+# ======================
 def extract_highres_images(html: str):
-    """Zwraca listę max 12 pełnych URL-i zdjęć produktu z Amazona."""
     urls = []
 
-    # 1) hiRes
+    # hiRes
     for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
-        u = m.group(1).replace("\\u0026", "&")
-        urls.append(u)
+        urls.append(m.group(1).replace("\\u0026", "&"))
 
-    # 2) large
+    # large
     for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
         u = m.group(1).replace("\\u0026", "&")
         if u not in urls:
             urls.append(u)
 
-    # 3) Fallback: data-a-dynamic-image (pewniak)
+    # Fallback: dynamic images (działa zawsze)
     dyn = re.search(r'data-a-dynamic-image="({[^"]+})"', html)
     if dyn:
-        block = dyn.group(1).replace("&quot;", '"')
         try:
+            block = dyn.group(1).replace("&quot;", '"')
             obj = json.loads(block)
-            for u in obj.keys():
-                urls.append(u)
-        except Exception:
+            for img_url in obj.keys():
+                urls.append(img_url)
+        except:
             pass
 
-    # Normalizacja i odfiltrowanie miniaturek
-    clean = []
-    seen = set()
-    for u in urls:
-        if not u:
-            continue
-        u = u.replace("\\u0026", "&")
-        # odetnij parametry typu ?v=3, ?abc=...
-        u = u.split("?", 1)[0]
-        # usuń wzorce miniaturek (…._AC_SX342_.jpg => .jpg)
-        if re.search(r'\._[^.]+\.', u):
-            u = re.sub(r'\._[^.]+\.', '.', u)
-        # tylko grafiki i bez duplikatów
-        if u.lower().endswith((".jpg", ".jpeg", ".png", ".webp")) and u not in seen:
-            seen.add(u)
-            clean.append(u)
+    # Usuń miniatury Amazona
+    urls = [u for u in urls if not re.search(r'\._[^.]+\.', u)]
+    urls = [u for u in urls if u.endswith((".jpg", ".jpeg", ".png", ".webp"))]
 
-    return clean[:12]
+    # max 12
+    return list(dict.fromkeys(urls))[:12]
 
 
-# ----------------- core scraper -----------------
-
-def fetch_amazon(url_or_asin: str):
-    API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"  # <— Twój klucz ScraperAPI
+# ======================
+#  AMAZON FETCH (ScraperAPI)
+# ======================
+def fetch_amazon(url_or_asin):
+    API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"   # ← Twój klucz ScraperAPI
 
     url_or_asin = url_or_asin.strip()
-    if "amazon" not in url_or_asin:
-        amazon_url = f"https://www.amazon.co.uk/dp/{url_or_asin.upper()}"
-    else:
-        amazon_url = url_or_asin.split("?", 1)[0]
+    asin = re.sub(r".*?/DP/([A-Z0-9]{8,14}).*", r"\1", url_or_asin.upper())
 
-    def fetch(render=False) -> str:
-        url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}"
-        if render:
-            url += "&render=true"
-        r = requests.get(url, timeout=25)
-        r.raise_for_status()
-        return r.text
+    # CACHE KEY
+    cache_key = md5(asin.encode()).hexdigest()
+    cached = cache_load(cache_key)
+    if cached:
+        return cached
 
-    # 1) szybka próba (bez render)
-    html = fetch(render=False)
+    amazon_url = f"https://www.amazon.co.uk/dp/{asin}"
+
+    # 1) fast request
+    r = requests.get(
+        f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}",
+        timeout=25
+    )
+    html = r.text
     soup = BeautifulSoup(html, "html.parser")
     title_tag = soup.find("span", {"id": "productTitle"})
 
-    # 2) fallback (render = true), gdy Amazon utrudnia
+    # 2) fallback if needed
     if not title_tag:
-        html = fetch(render=True)
+        r = requests.get(
+            f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}&render=true",
+            timeout=25
+        )
+        html = r.text
         soup = BeautifulSoup(html, "html.parser")
-        title_tag = soup.find("span", {"id": "productTitle"})
 
-    title = title_tag.get_text(strip=True) if title_tag else "No title found"
+    # TITLE
+    title = soup.find("span", {"id": "productTitle"})
+    title = title.get_text(strip=True) if title else "No title found"
 
-    # zdjęcia wyciągamy z TEGO html powyżej (bezpośrednio ze ScraperAPI)
+    # IMAGES
     images = extract_highres_images(html)
 
-    # bullets
+    # BULLETS
     bullets = []
     for li in soup.select("#feature-bullets li"):
         t = li.get_text(" ", strip=True)
-        if t and "Click to" not in t and "This fits your" not in t:
+        if t and "Click to" not in t and "fits your" not in t:
             bullets.append(t)
     bullets = bullets[:10]
 
-    # meta (Brand/Colour itp.)
+    # META
     meta = {}
     for li in soup.select("#detailBullets_feature_div li"):
-        text = li.get_text(" ", strip=True)
-        if ":" in text:
-            k, v = text.split(":", 1)
+        if ":" in li.get_text():
+            k, v = li.get_text(" ", strip=True).split(":", 1)
             meta[k.strip()] = v.strip()
 
-    return {
-        "title": title,
-        "images": images,
-        "bullets": bullets,
-        "meta": meta
-    }
+    result = {"title": title, "images": images, "bullets": bullets, "meta": meta}
+    cache_save(cache_key, result)
+    return result
 
 
+# ======================
+#  DESCRIPTION BUILDER
+# ======================
 def generate_listing_text(title, meta, bullets):
     brand = meta.get("Brand", "")
     colour = meta.get("Colour", "")
 
-    lines = []
-    lines.append(title)
+    lines = [title, ""]
+    if brand: lines.append(f"Brand: {brand}")
+    if colour: lines.append(f"Colour: {colour}")
     lines.append("")
 
-    if brand or colour:
-        if brand:
-            lines.append(f"Brand: {brand}")
-        if colour:
-            lines.append(f"Colour: {colour}")
-        lines.append("")
-
-    if bullets:
-        lines.append("✨ Key Features")
-        lines.append("")
-        for b in bullets[:10]:
-            b = re.sub(r"\[[^\]]+\]", "", b).strip()
-            lines.append(f"⚫️ {b}")
-            lines.append("")
-
+    lines.append("✨ Key Features\n")
+    for b in bullets:
+        lines.append(f"⚫️ {b}")
+    lines.append("")
     lines.append("📦 Fast Dispatch from UK   |   🚚 Tracked Delivery Included")
     return "\n".join(lines)
 
 
-# ----------------- routes -----------------
-
-@app.route("/health")
-def health():
-    return "ok", 200
-
+# ======================
+#   ROUTES
+# ======================
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -168,7 +173,6 @@ def index():
 def scrape():
     url = request.form.get("url", "").strip()
     data = fetch_amazon(url)
-
     listing_text = generate_listing_text(data["title"], data["meta"], data["bullets"])
 
     return render_template(
@@ -182,7 +186,7 @@ def scrape():
 @app.route("/proxy")
 def proxy():
     u = unquote(request.args.get("u", ""))
-    r = requests.get(u, timeout=25)
+    r = requests.get(u, timeout=20)
     return Response(r.content, mimetype="image/jpeg")
 
 @app.route("/download-zip", methods=["POST"])
@@ -191,10 +195,9 @@ def download_zip():
     mem = BytesIO()
     with zipfile.ZipFile(mem, "w") as z:
         for i, u in enumerate(selected):
-            z.writestr(f"image_{i+1}.jpg", requests.get(u, timeout=25).content)
+            z.writestr(f"image_{i+1}.jpg", requests.get(u).content)
     mem.seek(0)
-    return send_file(mem, mimetype="application/zip",
-                     as_attachment=True, download_name="images.zip")
+    return send_file(mem, mimetype="application/zip", as_attachment=True, download_name="images.zip")
 
 
 if __name__ == "__main__":
