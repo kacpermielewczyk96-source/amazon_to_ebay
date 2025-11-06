@@ -153,7 +153,7 @@ def generate_listing_text(title, meta, bullets):
         lines.append("✨ Key Features\n")
         for b in bullets:
             lines.append(f"⚫️ {b}")
-        lines.append("")
+            lines.append("")
 
     lines.append("📦 Fast Dispatch from UK   |   🚚 Tracked Delivery Included")
     return "\n".join(lines)
