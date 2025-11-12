@@ -86,8 +86,7 @@ def extract_highres_images(html: str):
 # ----------------- core scraper -----------------
 
 def fetch_amazon(url_or_asin: str):
-    API_KEY = "9fe7f834a7ef9abfcf0d45d2b86f3a5f"  # ← Twój klucz ScraperAPI
-
+    API_KEY = "8XKUKZ0ZS2M3KPVIEAXHQ22DPCBFELIER0QB9YVRM17REMIIALL2V789VQRZB61YD64SSOQG4ISVRMTR"
     url_or_asin = url_or_asin.strip()
     if "amazon" not in url_or_asin:
         asin = url_or_asin.upper()
@@ -103,9 +102,9 @@ def fetch_amazon(url_or_asin: str):
         return cached
 
     def fetch(render=False):
-        url = f"https://api.scraperapi.com?api_key={API_KEY}&url={amazon_url}"
+        url = f"https://app.scrapingbee.com/api/v1/?api_key={API_KEY}&url={amazon_url}"
         if render:
-            url += "&render=true"
+            url += "&render_js=true"
         r = requests.get(url, timeout=25)
         r.raise_for_status()
         return r.text
