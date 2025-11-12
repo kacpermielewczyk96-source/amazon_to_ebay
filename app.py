@@ -155,6 +155,7 @@ def generate_listing_text(title, meta, bullets):
             lines.append("")
 
     lines.append("📦 Fast Dispatch from UK   |   🚚 Tracked Delivery Included")
+    lines.append("")
     return "\n".join(lines)
 
 
