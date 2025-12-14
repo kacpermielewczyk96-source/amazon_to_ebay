@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file, Response
+from flask import Flask, render_template, request, send_file, Response, send_from_directory
 from io import BytesIO
 import re
 import json
@@ -18,7 +18,9 @@ BRIGHTDATA_ENDPOINT = "https://api.brightdata.com/request"
 
 # ----------------- CACHE -----------------
 CACHE_DIR = "cache"
+IMAGES_DIR = "static/images"
 os.makedirs(CACHE_DIR, exist_ok=True)
+os.makedirs(IMAGES_DIR, exist_ok=True)
 
 def cache_load(key):
     path = os.path.join(CACHE_DIR, key + ".json")
@@ -76,6 +78,32 @@ def extract_highres_images(html: str):
 
     return clean[:12]
 
+
+def download_and_save_image(url, asin, index):
+    """Pobiera zdjęcie i zapisuje lokalnie, zwraca lokalną ścieżkę"""
+    # Tworzę unikalną nazwę pliku
+    img_hash = md5(url.encode()).hexdigest()[:12]
+    ext = url.split(".")[-1].lower()
+    if ext not in ["jpg", "jpeg", "png", "webp"]:
+        ext = "jpg"
+    
+    filename = f"{asin}_{index}_{img_hash}.{ext}"
+    filepath = os.path.join(IMAGES_DIR, filename)
+    
+    # Jeśli już istnieje, nie pobieram ponownie
+    if os.path.exists(filepath):
+        return f"/static/images/{filename}"
+    
+    # Pobieram zdjęcie
+    try:
+        r = requests.get(url, timeout=25)
+        r.raise_for_status()
+        with open(filepath, "wb") as f:
+            f.write(r.content)
+        return f"/static/images/{filename}"
+    except:
+        return None
+
 # ----------------- core scraper -----------------
 
 def fetch_amazon(url_or_asin: str):
@@ -120,7 +148,15 @@ def fetch_amazon(url_or_asin: str):
     title_tag = soup.find("span", {"id": "productTitle"})
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
-    images = extract_highres_images(html)
+    # Pobieram URLs zdjęć
+    image_urls = extract_highres_images(html)
+    
+    # Pobieram i zapisuję lokalnie
+    local_images = []
+    for idx, img_url in enumerate(image_urls):
+        local_path = download_and_save_image(img_url, asin, idx)
+        if local_path:
+            local_images.append(local_path)
 
     bullets = [
         li.get_text(" ", strip=True)
@@ -137,7 +173,7 @@ def fetch_amazon(url_or_asin: str):
 
     result = {
         "title": title,
-        "images": images,
+        "images": local_images,  # Teraz to lokalne ścieżki!
         "bullets": bullets,
         "meta": meta
     }
@@ -176,37 +212,39 @@ def index():
 @app.route("/scrape", methods=["POST"])
 def scrape():
     data = fetch_amazon(request.form.get("url", ""))
+    # Zapisuję images do sesji/cache dla API endpoint
+    asin = request.form.get("url", "").strip()
+    if "amazon" not in asin:
+        asin = asin.upper()
+    else:
+        asin = re.sub(r".*?/dp/([A-Z0-9]+).*", r"\1", asin, flags=re.I)
+    
+    # Zapisuję w cache z kluczem dla API
+    cache_save(f"api_{asin}", {"images": data["images"]})
+    
     return render_template(
         "result.html",
         title80=truncate_title_80(data["title"]),
         full_title=data["title"],
         images=data["images"],
+        asin=asin,
         listing_text=generate_listing_text(
             data["title"], data["meta"], data["bullets"]
         )
     )
 
-@app.route("/proxy")
-def proxy():
-    r = requests.get(unquote(request.args.get("u", "")), timeout=25)
-    return Response(r.content, mimetype="image/jpeg")
-
-@app.route("/download-zip", methods=["POST"])
-def download_zip():
-    mem = BytesIO()
-    with zipfile.ZipFile(mem, "w") as z:
-        for i, u in enumerate(request.form.getlist("selected")):
-            z.writestr(
-                f"image_{i+1}.jpg",
-                requests.get(u, timeout=25).content
-            )
-    mem.seek(0)
-    return send_file(
-        mem,
-        mimetype="application/zip",
-        as_attachment=True,
-        download_name="images.zip"
-    )
+@app.route("/api/images/<asin>")
+def api_images(asin):
+    """API endpoint dla iOS Shortcut - zwraca pełne URLe zdjęć"""
+    cached = cache_load(f"api_{asin}")
+    if not cached:
+        return {"error": "ASIN not found"}, 404
+    
+    # Tworzymy pełne URLe
+    base_url = request.host_url.rstrip('/')
+    full_urls = [f"{base_url}{img}" for img in cached["images"]]
+    
+    return {"images": full_urls}
 
 if __name__ == "__main__":
     app.run(debug=True, port=8000)
