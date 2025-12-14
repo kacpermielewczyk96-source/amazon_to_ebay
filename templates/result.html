@@ -5,15 +5,12 @@
     <style>
         body { font-family: Arial, sans-serif; padding: 15px; }
         .container { max-width: 600px; margin: auto; }
-
         h2 { margin-bottom: 6px; font-size: 22px; font-weight: 700; }
-
         .full-title {
             font-size: 14px;
             color: #666;
             margin-bottom: 14px;
         }
-
         .btn {
             width: 100%;
             background: #007aff;
@@ -24,82 +21,98 @@
             font-size: 16px;
             margin-top: 12px;
         }
-
-        .download-btn {
-            background: black !important;
-        }
-
         .images-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 10px;
             margin-top: 14px;
         }
-
-        .img-wrap { position: relative; }
-        .img-wrap img { width: 100%; border-radius: 8px; object-fit: cover; }
-        .img-wrap input { position: absolute; top: 6px; left: 6px; transform: scale(1.4); }
-
-        #desc-box, #plain-desc {
+        .img-wrap { 
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .img-wrap img { 
+            width: 100%; 
+            display: block;
+            border-radius: 8px;
+            object-fit: cover; 
+        }
+        #plain-desc {
             border: 1px solid #ccc;
             border-radius: 8px;
             padding: 14px;
             margin-top: 18px;
             line-height: 1.45;
             font-size: 15px;
+            white-space: pre-wrap;
         }
-
-        #plain-desc {
-            white-space: pre-wrap; /* ✅ zachowuje odstępy */
+        .hint {
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+            margin-top: 10px;
+            margin-bottom: 6px;
         }
     </style>
 </head>
 <body>
 <div class="container">
-
     <!-- Title 80 chars -->
     <h2>{{ title80 }}</h2>
-
     <!-- Full Title -->
     <div class="full-title">{{ full_title }}</div>
-
     <button class="btn" onclick="copyText('{{ title80 }}')">📋 Copy Title</button>
-
-    <form action="/download-zip" method="post">
-        <div class="images-grid">
-        {% for img in images %}
-            <label class="img-wrap">
-                <input type="checkbox" name="selected" value="{{ img }}" checked>
-                <img src="/proxy?u={{ img }}">
-            </label>
-        {% endfor %}
+    
+    <!-- iOS Shortcut Share Button -->
+    <button class="btn" style="background: #34C759;" onclick="shareForShortcut()">
+        💾 Save All Images (iOS Shortcut)
+    </button>
+    
+    <!-- Images Grid -->
+    <p class="hint">💡 Tap & hold any image → Add to Photos</p>
+    <div class="images-grid">
+    {% for img in images %}
+        <div class="img-wrap">
+            <img src="{{ img }}" alt="Product image">
         </div>
-
-        <button type="submit" class="btn download-btn">📦 Download Selected Images (.ZIP)</button>
-    </form>
-
-
-
-    <!-- ✅ PLAIN TEXT DESCRIPTION FOR MOBILE -->
-<button class="btn" onclick="copyText(document.getElementById('plain-desc').innerText)">
-    📄 Copy Description
-</button>
-
-<div id="plain-desc" style="white-space: pre-wrap; line-height: 1.6; margin-top: 12px;">
-{{ listing_text }}
-</div>
-
+    {% endfor %}
+    </div>
+    
+    <!-- Description -->
+    <button class="btn" onclick="copyText(document.getElementById('plain-desc').innerText)">
+        📄 Copy Description
+    </button>
+    <div id="plain-desc">{{ listing_text }}</div>
+    
     <form action="/" method="get">
-        <button class="btn" style="margin-top:20px;">🔄 New Item </button>
+        <button class="btn" style="margin-top:20px;">🔄 New Item</button>
     </form>
-
 </div>
-
 <script>
 function copyText(text) {
     navigator.clipboard.writeText(text);
 }
-</script>
 
+function shareForShortcut() {
+    const apiUrl = window.location.origin + '/api/images/{{ asin }}';
+    
+    if (navigator.share) {
+        navigator.share({
+            title: 'Save All Images',
+            text: 'Tap to download all images',
+            url: apiUrl
+        }).catch(err => {
+            // Jeśli share nie działa, kopiuj URL
+            copyText(apiUrl);
+            alert('Link skopiowany! Wklej go w Shortcut');
+        });
+    } else {
+        // Fallback - kopiuj URL
+        copyText(apiUrl);
+        alert('Link skopiowany do schowka!\n\nTeraz:\n1. Otwórz Shortcuts app\n2. Wklej ten link w Shortcut');
+    }
+}
+</script>
 </body>
 </html>
