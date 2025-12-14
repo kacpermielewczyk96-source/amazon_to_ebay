@@ -11,6 +11,9 @@ from hashlib import md5
 
 app = Flask(__name__)
 
+# ----------------- BRIGHT DATA -----------------
+BRIGHTDATA_API_KEY = "1bbcee91427624e79bfbc87c146ae2dbf0ddce6f55f0ed8ef2f448b49ca3e93d"
+
 # ----------------- CACHE -----------------
 CACHE_DIR = "cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -86,8 +89,10 @@ def extract_highres_images(html: str):
 # ----------------- core scraper -----------------
 
 def fetch_amazon(url_or_asin: str):
-    API_KEY = "8XKUKZ0ZS2M3KPVIEAXHQ22DPCBFELIER0QB9YVRM17REMIIALL2V789VQRZB61YD64SSOQG4ISVRMTR"
-    url_or_asin = url_or_asin.strip()
+    url_or_asin = (url_or_asin or "").strip()
+    if not url_or_asin:
+        return {"title": "No title found", "images": [], "bullets": [], "meta": {}}
+
     if "amazon" not in url_or_asin:
         asin = url_or_asin.upper()
         amazon_url = f"https://www.amazon.co.uk/dp/{asin}"
@@ -96,29 +101,37 @@ def fetch_amazon(url_or_asin: str):
         asin = re.sub(r".*?/dp/([A-Z0-9]+).*", r"\1", amazon_url, flags=re.IGNORECASE)
 
     cache_key = md5(asin.encode()).hexdigest()
-
     cached = cache_load(cache_key)
     if cached:
         return cached
 
-    def fetch(render=False):
-        url = f"https://app.scrapingbee.com/api/v1/?api_key={API_KEY}&url={amazon_url}"
-        if render:
-            url += "&render_js=true"
-        r = requests.get(url, timeout=25)
-        r.raise_for_status()
-        return r.text
+    # --- Bright Data Web Scraper API ---
+    # Endpoint + payload dla pobrania HTML (bez renderowania JS)
+    payload = {
+        "url": amazon_url,
+        "country": "gb",
+        "render": False
+    }
 
-    html = fetch(render=False)
+    headers = {
+        "Authorization": f"Bearer {BRIGHTDATA_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    r = requests.post(
+        "https://api.brightdata.com/request",
+        headers=headers,
+        json=payload,
+        timeout=30
+    )
+    r.raise_for_status()
+    html = r.text
+
     soup = BeautifulSoup(html, "html.parser")
 
     title_tag = soup.find("span", {"id": "productTitle"})
-    if not title_tag:  # fallback
-        html = fetch(render=True)
-        soup = BeautifulSoup(html, "html.parser")
-        title_tag = soup.find("span", {"id": "productTitle"})
-
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
+
     images = extract_highres_images(html)
 
     bullets = [
@@ -144,8 +157,10 @@ def generate_listing_text(title, meta, bullets):
     colour = meta.get("Colour", "")
 
     lines = [title, ""]
-    if brand: lines.append(f"Brand: {brand}")
-    if colour: lines.append(f"Colour: {colour}")
+    if brand:
+        lines.append(f"Brand: {brand}")
+    if colour:
+        lines.append(f"Colour: {colour}")
     lines.append("")
 
     if bullets:
