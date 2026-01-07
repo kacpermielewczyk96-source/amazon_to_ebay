@@ -119,53 +119,15 @@
 </div>
 
 <script>
-// Przycisk "Wklej i Szukaj" - FIX DLA SAFARI
+// Przycisk "Wklej i Szukaj" - prosty clipboard API
 async function pasteAndSearch() {
-    const input = document.getElementById('urlInput');
-    
-    // Spróbuj clipboard API (Chrome, Firefox, Safari z HTTPS)
-    if (navigator.clipboard && navigator.clipboard.readText) {
-        try {
-            const text = await navigator.clipboard.readText();
-            input.value = text.trim();
-            document.getElementById('searchForm').submit();
-            return;
-        } catch (err) {
-            console.log('Clipboard API failed, trying fallback');
-        }
+    try {
+        const text = await navigator.clipboard.readText();
+        document.getElementById('urlInput').value = text.trim();
+        document.getElementById('searchForm').submit();
+    } catch (err) {
+        alert('Nie można wkleić. Sprawdź uprawnienia Safari:\n\nUstawienia → Safari → upewnij się że strona ma dostęp do schowka.');
     }
-    
-    // Fallback dla Safari - focus na input i czekaj na paste
-    input.value = '';
-    input.focus();
-    input.select();
-    
-    // Pokaż instrukcję
-    const originalPlaceholder = input.placeholder;
-    input.placeholder = '👆 Przytrzymaj i wklej tutaj, potem naciśnij Enter';
-    
-    // Nasłuchuj paste event
-    const pasteHandler = function(e) {
-        e.preventDefault();
-        const text = (e.clipboardData || window.clipboardData).getData('text');
-        input.value = text.trim();
-        input.placeholder = originalPlaceholder;
-        
-        // Auto-submit po wklejeniu
-        setTimeout(() => {
-            document.getElementById('searchForm').submit();
-        }, 100);
-        
-        input.removeEventListener('paste', pasteHandler);
-    };
-    
-    input.addEventListener('paste', pasteHandler);
-    
-    // Anuluj instrukcję po 10 sekundach
-    setTimeout(() => {
-        input.placeholder = originalPlaceholder;
-        input.removeEventListener('paste', pasteHandler);
-    }, 10000);
 }
 
 // Zapisz do historii przy submicie
