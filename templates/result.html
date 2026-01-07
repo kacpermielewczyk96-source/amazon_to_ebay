@@ -13,8 +13,7 @@
         }
         .btn {
             width: 100%;
-            background: 
-#007aff;
+            background: #007aff;
             color: white;
             border: none;
             border-radius: 8px;
@@ -66,22 +65,22 @@
         <button type="submit" class="btn download-btn">📦 Download Selected Images (.ZIP)</button>
     </form>
     <!-- ✅ PLAIN TEXT DESCRIPTION FOR MOBILE -->
-<button class="btn" onclick="copyText(document.getElementById('plain-desc').innerText)">
-    📄 Copy Description
-</button>
-<div id="plain-desc" style="white-space: pre-wrap; line-height: 1.6; margin-top: 12px;">
+    <button class="btn" onclick="copyText(document.getElementById('plain-desc').innerText)">
+        📄 Copy Description
+    </button>
+    <div id="plain-desc" style="white-space: pre-wrap; line-height: 1.6; margin-top: 12px;">
 {{ listing_text }}
-</div>
+    </div>
     <form action="/" method="get">
-        <button class="btn" style="margin-top:20px;">🔄 New Item </button>
+        <button class="btn" style="margin-top:20px;">🔄 New Item</button>
     </form>
 </div>
+
 <script>
 function copyText(text) {
     navigator.clipboard.writeText(text);
 }
-</script>
-<script>
+
 function extractASIN(url) {
     if (/^[A-Z0-9]{10}$/i.test(url)) return url.toUpperCase();
     const match = url.match(/\/dp\/([A-Z0-9]{10})/i);
@@ -90,13 +89,12 @@ function extractASIN(url) {
 
 // Zapisz obrazek do historii
 (function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlParam = urlParams.get('url') || '{{ request.form.get("url", "") }}';
     const firstImage = '{{ images[0] if images else "" }}';
     const title = '{{ title80 }}';
+    const urlInput = '{{ request.form.get("url", "") }}';
     
-    if (urlParam && firstImage) {
-        const asin = extractASIN(urlParam);
+    if (urlInput && firstImage) {
+        const asin = extractASIN(urlInput);
         if (asin) {
             let history = JSON.parse(localStorage.getItem('amazonHistory') || '[]');
             const index = history.findIndex(item => item.asin === asin);
