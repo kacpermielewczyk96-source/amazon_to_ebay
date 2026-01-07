@@ -54,6 +54,10 @@
         button:active {
             opacity: 0.7;
         }
+        .paste-btn {
+            background: #007aff;
+            margin-bottom: 12px;
+        }
         
         /* Historia */
         .history {
@@ -100,8 +104,9 @@
 <h1>📦 Amazon → eBay</h1>
 <p class="sub">Wklej link Amazon lub wpisz ASIN</p>
 <div class="box">
+    <button type="button" class="paste-btn" onclick="pasteFromClipboard()">📋 Wklej</button>
     <form id="searchForm" action="/scrape" method="POST">
-        <input id="urlInput" name="url" type="text" placeholder="Kliknij i wklej ASIN lub link" autofocus>
+        <input id="urlInput" name="url" type="text" placeholder="np. B0B5XGXXXL lub https://amazon.co.uk/...">
         <button type="submit">Pobierz dane</button>
     </form>
 </div>
@@ -113,56 +118,39 @@
 </div>
 
 <script>
-// Auto-focus przy załadowaniu
-window.addEventListener('load', function() {
-    document.getElementById('urlInput').focus();
-});
-
-// Zapisz do historii przy submicie
-document.getElementById('searchForm').addEventListener('submit', function(e) {
-    const url = document.getElementById('urlInput').value.trim();
-    if (url) {
-        saveToHistory(url);
+// Przycisk "Wklej"
+async function pasteFromClipboard() {
+    try {
+        const text = await navigator.clipboard.readText();
+        document.getElementById('urlInput').value = text.trim();
+    } catch (err) {
+        const input = document.getElementById('urlInput');
+        input.focus();
+        input.select();
+        alert('Przytrzymaj w polu i wybierz "Paste"');
     }
-});
-
-// Funkcja zapisująca do localStorage
-function saveToHistory(url) {
-    const asin = extractASIN(url);
-    if (!asin) return;
-    
-    let history = JSON.parse(localStorage.getItem('amazonHistory') || '[]');
-    
-    // Usuń duplikaty tego samego ASIN
-    history = history.filter(item => item.asin !== asin);
-    
-    // Dodaj nowy na początek
-    history.unshift({
-        asin: asin,
-        url: url,
-        timestamp: Date.now()
-    });
-    
-    // Ogranicz do 15
-    history = history.slice(0, 15);
-    
-    localStorage.setItem('amazonHistory', JSON.stringify(history));
 }
 
-// Wyciągnij ASIN z URL lub zwróć sam tekst jeśli to ASIN
-function extractASIN(url) {
-    if (/^[A-Z0-9]{10}$/i.test(url)) return url.toUpperCase();
-    const match = url.match(/\/dp\/([A-Z0-9]{10})/i);
-    return match ? match[1].toUpperCase() : null;
+// Pobierz historię z serwera
+async function loadHistory() {
+    try {
+        const response = await fetch('/api/history');
+        const history = await response.json();
+        displayHistory(history);
+    } catch (err) {
+        console.error('Błąd ładowania historii:', err);
+    }
 }
 
-// Wyświetl historię na stronie głównej
-function displayHistory() {
-    const history = JSON.parse(localStorage.getItem('amazonHistory') || '[]');
+// Wyświetl historię
+function displayHistory(history) {
     const grid = document.getElementById('historyGrid');
     const section = document.getElementById('historySection');
     
-    if (history.length === 0) {
+    // Filtruj tylko te z obrazkami
+    const withImages = history.filter(item => item.image);
+    
+    if (withImages.length === 0) {
         section.style.display = 'none';
         return;
     }
@@ -170,9 +158,7 @@ function displayHistory() {
     section.style.display = 'block';
     grid.innerHTML = '';
     
-    history.forEach(item => {
-        if (!item.image) return; // Pokaż tylko te z obrazkiem
-        
+    withImages.forEach(item => {
         const div = document.createElement('div');
         div.className = 'history-item';
         div.onclick = () => {
@@ -189,8 +175,11 @@ function displayHistory() {
     });
 }
 
-// Uruchom przy załadowaniu strony
-displayHistory();
+// Załaduj historię przy starcie
+loadHistory();
+
+// Odświeżaj historię co 30 sekund (jeśli ktoś inny coś doda)
+setInterval(loadHistory, 30000);
 </script>
 </body>
 </html>
