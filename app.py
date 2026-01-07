@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file, Response
+from flask import Flask, render_template, request, send_file, Response, jsonify
 from io import BytesIO
 import re
 import json
@@ -8,6 +8,8 @@ from bs4 import BeautifulSoup
 from urllib.parse import unquote
 import zipfile
 from hashlib import md5
+import sqlite3
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -19,6 +21,67 @@ BRIGHTDATA_ENDPOINT = "https://api.brightdata.com/request"
 # ----------------- CACHE -----------------
 CACHE_DIR = "cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
+
+# ----------------- DATABASE -----------------
+DB_PATH = "history.db"
+
+def init_db():
+    """Inicjalizacja bazy danych dla historii"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS search_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            asin TEXT NOT NULL,
+            title TEXT,
+            image_url TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(asin)
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def save_to_history_db(asin, title=None, image_url=None):
+    """Zapisz lub zaktualizuj wpis w historii"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        # Usuń stary wpis jeśli istnieje (żeby zaktualizować timestamp)
+        c.execute('DELETE FROM search_history WHERE asin = ?', (asin,))
+        # Dodaj nowy
+        c.execute('''
+            INSERT INTO search_history (asin, title, image_url, timestamp)
+            VALUES (?, ?, ?, ?)
+        ''', (asin, title, image_url, datetime.now()))
+        conn.commit()
+    finally:
+        conn.close()
+
+def get_history_from_db(limit=15):
+    """Pobierz ostatnie wyszukiwania"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        SELECT asin, title, image_url, timestamp
+        FROM search_history
+        ORDER BY timestamp DESC
+        LIMIT ?
+    ''', (limit,))
+    rows = c.fetchall()
+    conn.close()
+    
+    return [
+        {
+            'asin': row[0],
+            'title': row[1],
+            'image': row[2],
+            'timestamp': row[3]
+        }
+        for row in rows
+    ]
 
 def cache_load(key):
     path = os.path.join(CACHE_DIR, key + ".json")
@@ -45,7 +108,6 @@ def truncate_title_80(s: str) -> str:
     if " " in cut:
         cut = cut[:cut.rfind(" ")].rstrip()
     return cut
-
 
 def extract_highres_images(html: str):
     urls = []
@@ -175,7 +237,19 @@ def index():
 
 @app.route("/scrape", methods=["POST"])
 def scrape():
-    data = fetch_amazon(request.form.get("url", ""))
+    url_input = request.form.get("url", "")
+    data = fetch_amazon(url_input)
+    
+    # Wyciągnij ASIN
+    if "amazon" not in url_input:
+        asin = url_input.upper()
+    else:
+        asin = re.sub(r".*?/dp/([A-Z0-9]+).*", r"\1", url_input, flags=re.I)
+    
+    # Zapisz do bazy (z pierwszym zdjęciem jeśli istnieje)
+    first_image = data["images"][0] if data["images"] else None
+    save_to_history_db(asin, truncate_title_80(data["title"]), first_image)
+    
     return render_template(
         "result.html",
         title80=truncate_title_80(data["title"]),
@@ -185,6 +259,12 @@ def scrape():
             data["title"], data["meta"], data["bullets"]
         )
     )
+
+@app.route("/api/history")
+def api_history():
+    """API endpoint do pobierania historii"""
+    history = get_history_from_db(limit=15)
+    return jsonify(history)
 
 @app.route("/proxy")
 def proxy():
