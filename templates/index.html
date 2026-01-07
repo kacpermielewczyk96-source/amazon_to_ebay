@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>📦 Amazon → eBay Helper</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -15,28 +14,24 @@
             margin-left: auto;
             margin-right: auto;
         }
-
         h1 {
             text-align: center;
             margin-top: 10px;
             margin-bottom: 5px;
             font-size: 30px;
         }
-
         p.sub {
             text-align: center;
             color: #666;
             margin-bottom: 30px;
             font-size: 15px;
         }
-
         .box {
             background: #f4f4f4;
             padding: 18px;
             border-radius: 12px;
             box-shadow: 0 0 0 rgba(0,0,0,0);
         }
-
         input[type=text] {
             width: 100%;
             padding: 14px 16px;
@@ -47,7 +42,6 @@
             box-sizing: border-box;
             margin-bottom: 16px;
         }
-
         button {
             width: 100%;
             padding: 15px;
@@ -58,24 +52,178 @@
             color: white;
             cursor: pointer;
         }
-
         button:active {
             opacity: 0.7;
         }
+        .paste-btn {
+            background: #007aff;
+            margin-bottom: 12px;
+        }
+        
+        /* Historia */
+        .history {
+            margin-top: 40px;
+        }
+        .history h2 {
+            font-size: 20px;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .history-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+        .history-item {
+            cursor: pointer;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #e0e0e0;
+            transition: border-color 0.2s;
+        }
+        .history-item:active {
+            opacity: 0.7;
+        }
+        .history-item img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            display: block;
+        }
+        .history-item .title {
+            padding: 8px;
+            font-size: 12px;
+            color: #666;
+            background: #f9f9f9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
     </style>
 </head>
-
 <body>
-
 <h1>📦 Amazon → eBay</h1>
 <p class="sub">Wklej link Amazon lub wpisz ASIN</p>
-
 <div class="box">
-    <form action="/scrape" method="POST">
-        <input name="url" type="text" placeholder="np. B0B5XGXXXL lub https://amazon.co.uk/...">
+    <button type="button" class="paste-btn" onclick="pasteAndSearch()">📋 Wklej i Szukaj</button>
+    <form id="searchForm" action="/scrape" method="POST">
+        <input id="urlInput" name="url" type="text" placeholder="np. B0B5XGXXXL lub https://amazon.co.uk/...">
         <button type="submit">Pobierz dane</button>
     </form>
 </div>
 
+<!-- Historia -->
+<div class="history" id="historySection" style="display:none;">
+    <h2>📋 Ostatnie wyszukiwania</h2>
+    <div class="history-grid" id="historyGrid"></div>
+</div>
+
+<script>
+// Przycisk "Wklej i Szukaj"
+async function pasteAndSearch() {
+    try {
+        const text = await navigator.clipboard.readText();
+        document.getElementById('urlInput').value = text.trim();
+        document.getElementById('searchForm').submit();
+    } catch (err) {
+        alert('Nie można wkleić. Sprawdź uprawnienia przeglądarki.');
+    }
+}
+
+// Zapisz do historii przy submicie
+document.getElementById('searchForm').addEventListener('submit', function(e) {
+    const url = document.getElementById('urlInput').value.trim();
+    if (url) {
+        saveToHistory(url);
+    }
+});
+
+// Funkcja zapisująca do localStorage
+function saveToHistory(url) {
+    const asin = extractASIN(url);
+    if (!asin) return;
+    
+    let history = JSON.parse(localStorage.getItem('amazonHistory') || '[]');
+    
+    // Usuń duplikaty tego samego ASIN
+    history = history.filter(item => item.asin !== asin);
+    
+    // Dodaj nowy na początek
+    history.unshift({
+        asin: asin,
+        url: url,
+        timestamp: Date.now()
+    });
+    
+    // Ogranicz do 15
+    history = history.slice(0, 15);
+    
+    localStorage.setItem('amazonHistory', JSON.stringify(history));
+}
+
+// Wyciągnij ASIN z URL lub zwróć sam tekst jeśli to ASIN
+function extractASIN(url) {
+    if (/^[A-Z0-9]{10}$/i.test(url)) return url.toUpperCase();
+    const match = url.match(/\/dp\/([A-Z0-9]{10})/i);
+    return match ? match[1].toUpperCase() : null;
+}
+
+// Wczytaj historię z result.html (po załadowaniu strony z wynikami)
+function loadHistoryFromResult() {
+    const images = {{ images | tojson | safe }};
+    const title = {{ title80 | tojson | safe }};
+    const urlParam = new URLSearchParams(window.location.search).get('url');
+    
+    if (images && images.length > 0 && urlParam) {
+        const asin = extractASIN(urlParam);
+        if (asin) {
+            let history = JSON.parse(localStorage.getItem('amazonHistory') || '[]');
+            const index = history.findIndex(item => item.asin === asin);
+            
+            if (index !== -1) {
+                history[index].image = images[0];
+                history[index].title = title;
+                localStorage.setItem('amazonHistory', JSON.stringify(history));
+            }
+        }
+    }
+}
+
+// Wyświetl historię na stronie głównej
+function displayHistory() {
+    const history = JSON.parse(localStorage.getItem('amazonHistory') || '[]');
+    const grid = document.getElementById('historyGrid');
+    const section = document.getElementById('historySection');
+    
+    if (history.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    
+    section.style.display = 'block';
+    grid.innerHTML = '';
+    
+    history.forEach(item => {
+        if (!item.image) return; // Pokaż tylko te z obrazkiem
+        
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        div.onclick = () => {
+            document.getElementById('urlInput').value = item.asin;
+            document.getElementById('searchForm').submit();
+        };
+        
+        div.innerHTML = `
+            <img src="/proxy?u=${encodeURIComponent(item.image)}" alt="${item.title || item.asin}">
+            <div class="title">${item.title || item.asin}</div>
+        `;
+        
+        grid.appendChild(div);
+    });
+}
+
+// Uruchom przy załadowaniu strony
+displayHistory();
+</script>
 </body>
 </html>
