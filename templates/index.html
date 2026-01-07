@@ -168,27 +168,6 @@ function extractASIN(url) {
     return match ? match[1].toUpperCase() : null;
 }
 
-// Wczytaj historię z result.html (po załadowaniu strony z wynikami)
-function loadHistoryFromResult() {
-    const images = {{ images | tojson | safe }};
-    const title = {{ title80 | tojson | safe }};
-    const urlParam = new URLSearchParams(window.location.search).get('url');
-    
-    if (images && images.length > 0 && urlParam) {
-        const asin = extractASIN(urlParam);
-        if (asin) {
-            let history = JSON.parse(localStorage.getItem('amazonHistory') || '[]');
-            const index = history.findIndex(item => item.asin === asin);
-            
-            if (index !== -1) {
-                history[index].image = images[0];
-                history[index].title = title;
-                localStorage.setItem('amazonHistory', JSON.stringify(history));
-            }
-        }
-    }
-}
-
 // Wyświetl historię na stronie głównej
 function displayHistory() {
     const history = JSON.parse(localStorage.getItem('amazonHistory') || '[]');
