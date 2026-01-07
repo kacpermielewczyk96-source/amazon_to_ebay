@@ -118,16 +118,16 @@
 </div>
 
 <script>
-// Przycisk "Wklej"
+// Przycisk "Wklej" - POPRAWIONY (bez alertów)
 async function pasteFromClipboard() {
     try {
         const text = await navigator.clipboard.readText();
         document.getElementById('urlInput').value = text.trim();
     } catch (err) {
+        // Błąd = użytkownik nie dał zgody lub przeglądarka nie wspiera
+        // Po prostu fokusujemy pole bez alertu
         const input = document.getElementById('urlInput');
         input.focus();
-        input.select();
-        alert('Przytrzymaj w polu i wybierz "Paste"');
     }
 }
 
@@ -178,7 +178,7 @@ function displayHistory(history) {
 // Załaduj historię przy starcie
 loadHistory();
 
-// Odświeżaj historię co 30 sekund (jeśli ktoś inny coś doda)
+// Odświeżaj historię co 30 sekund
 setInterval(loadHistory, 30000);
 </script>
 </body>
