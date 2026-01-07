@@ -30,7 +30,6 @@
             background: #f4f4f4;
             padding: 18px;
             border-radius: 12px;
-            box-shadow: 0 0 0 rgba(0,0,0,0);
         }
         input[type=text] {
             width: 100%;
@@ -54,10 +53,6 @@
         }
         button:active {
             opacity: 0.7;
-        }
-        .paste-btn {
-            background: #007aff;
-            margin-bottom: 12px;
         }
         
         /* Historia */
@@ -105,9 +100,8 @@
 <h1>📦 Amazon → eBay</h1>
 <p class="sub">Wklej link Amazon lub wpisz ASIN</p>
 <div class="box">
-    <button type="button" class="paste-btn" onclick="pasteAndSearch()">📋 Wklej i Szukaj</button>
     <form id="searchForm" action="/scrape" method="POST">
-        <input id="urlInput" name="url" type="text" placeholder="np. B0B5XGXXXL lub https://amazon.co.uk/...">
+        <input id="urlInput" name="url" type="text" placeholder="Kliknij i wklej ASIN lub link" autofocus>
         <button type="submit">Pobierz dane</button>
     </form>
 </div>
@@ -119,16 +113,10 @@
 </div>
 
 <script>
-// Przycisk "Wklej i Szukaj" - prosty clipboard API
-async function pasteAndSearch() {
-    try {
-        const text = await navigator.clipboard.readText();
-        document.getElementById('urlInput').value = text.trim();
-        document.getElementById('searchForm').submit();
-    } catch (err) {
-        alert('Nie można wkleić. Sprawdź uprawnienia Safari:\n\nUstawienia → Safari → upewnij się że strona ma dostęp do schowka.');
-    }
-}
+// Auto-focus przy załadowaniu
+window.addEventListener('load', function() {
+    document.getElementById('urlInput').focus();
+});
 
 // Zapisz do historii przy submicie
 document.getElementById('searchForm').addEventListener('submit', function(e) {
