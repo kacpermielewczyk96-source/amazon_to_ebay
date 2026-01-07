@@ -81,5 +81,34 @@ function copyText(text) {
     navigator.clipboard.writeText(text);
 }
 </script>
+<script>
+function extractASIN(url) {
+    if (/^[A-Z0-9]{10}$/i.test(url)) return url.toUpperCase();
+    const match = url.match(/\/dp\/([A-Z0-9]{10})/i);
+    return match ? match[1].toUpperCase() : null;
+}
+
+// Zapisz obrazek do historii
+(function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlParam = urlParams.get('url') || '{{ request.form.get("url", "") }}';
+    const firstImage = '{{ images[0] if images else "" }}';
+    const title = '{{ title80 }}';
+    
+    if (urlParam && firstImage) {
+        const asin = extractASIN(urlParam);
+        if (asin) {
+            let history = JSON.parse(localStorage.getItem('amazonHistory') || '[]');
+            const index = history.findIndex(item => item.asin === asin);
+            
+            if (index !== -1) {
+                history[index].image = firstImage;
+                history[index].title = title;
+                localStorage.setItem('amazonHistory', JSON.stringify(history));
+            }
+        }
+    }
+})();
+</script>
 </body>
 </html>
