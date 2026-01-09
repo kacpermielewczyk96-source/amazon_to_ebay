@@ -42,6 +42,7 @@ def init_db():
             title TEXT,
             image_url TEXT,
             sku TEXT,
+            notes TEXT,
             custom_description TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -131,7 +132,7 @@ def get_product_details(asin):
     """Pobierz szczegóły produktu z bazy"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT asin, title, image_url, sku, custom_description FROM search_history WHERE asin = ?', (asin,))
+    c.execute('SELECT asin, title, image_url, sku, notes, custom_description FROM search_history WHERE asin = ?', (asin,))
     row = c.fetchone()
     conn.close()
     
@@ -141,7 +142,8 @@ def get_product_details(asin):
             'title': row[1],
             'image_url': row[2],
             'sku': row[3] or '',
-            'custom_description': row[4] or ''
+            'notes': row[4] or '',
+            'custom_description': row[5] or ''
         }
     return None
 
@@ -334,7 +336,7 @@ def scrape():
     first_image = data["images"][0] if data["images"] else None
     save_to_history_db(asin, truncate_title_80(data["title"]), first_image)
     
-    # Pobierz istniejące dane (SKU, dodatkowe zdjęcia, custom opis)
+    # Pobierz istniejące dane (SKU, notes, dodatkowe zdjęcia, custom opis)
     existing = get_product_details(asin)
     extra_images = get_product_images(asin)
     
@@ -349,20 +351,22 @@ def scrape():
         images=data["images"],
         extra_images=extra_images,
         sku=existing['sku'] if existing else '',
+        notes=existing['notes'] if existing else '',
         listing_text=listing_text
     )
 
 @app.route("/save-product", methods=["POST"])
 def save_product():
-    """Zapisz SKU i dodatkowe zdjęcia"""
+    """Zapisz SKU, notes i dodatkowe zdjęcia"""
     asin = request.form.get("asin")
     sku = request.form.get("sku", "").strip()
+    notes = request.form.get("notes", "").strip()
     
-    # Aktualizuj SKU
+    # Aktualizuj SKU i notes
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('UPDATE search_history SET sku = ?, timestamp = ? WHERE asin = ?', 
-              (sku, datetime.now(), asin))
+    c.execute('UPDATE search_history SET sku = ?, notes = ?, timestamp = ? WHERE asin = ?', 
+              (sku, notes, datetime.now(), asin))
     conn.commit()
     conn.close()
     
