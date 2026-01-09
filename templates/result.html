@@ -3,7 +3,12 @@
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: Arial, sans-serif; padding: 15px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            padding: 15px; 
+            background: #fff;
+        }
         .container { max-width: 600px; margin: auto; }
         h2 { margin-bottom: 6px; font-size: 22px; font-weight: 700; }
         .full-title {
@@ -11,6 +16,31 @@
             color: #666;
             margin-bottom: 14px;
         }
+        
+        /* SKU Field */
+        .sku-section {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 12px;
+            margin-bottom: 12px;
+        }
+        .sku-section label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #333;
+        }
+        .sku-section input {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            outline: none;
+        }
+        
         .btn {
             width: 100%;
             background: #007aff;
@@ -20,93 +50,446 @@
             padding: 12px;
             font-size: 16px;
             margin-top: 12px;
+            cursor: pointer;
         }
-        .download-btn {
-            background: black !important;
+        .btn:active { opacity: 0.7; }
+        .download-btn { background: black !important; }
+        .save-btn { background: #34c759 !important; font-weight: 600; }
+        
+        /* Galeria - horizontal scroll */
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: #333;
         }
-        .images-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-top: 14px;
+        .images-scroll {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 10px 0;
+            scroll-snap-type: x mandatory;
         }
-        .img-wrap { position: relative; }
-        .img-wrap img { width: 100%; border-radius: 8px; object-fit: cover; }
-        .img-wrap input { position: absolute; top: 6px; left: 6px; transform: scale(1.4); }
-        #desc-box, #plain-desc {
+        .images-scroll::-webkit-scrollbar { display: none; }
+        
+        .img-thumb {
+            flex: 0 0 120px;
+            height: 120px;
+            position: relative;
+            scroll-snap-align: start;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #e0e0e0;
+        }
+        .img-thumb.selected { border-color: #007aff; }
+        .img-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .img-thumb .checkbox {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 24px;
+            height: 24px;
+            background: rgba(255,255,255,0.9);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            border: 2px solid #ddd;
+        }
+        .img-thumb.selected .checkbox {
+            background: #007aff;
+            border-color: #007aff;
+            color: white;
+        }
+        
+        /* Upload section */
+        .upload-section {
+            background: #f0f0f0;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+            text-align: center;
+        }
+        .upload-section input[type="file"] {
+            display: none;
+        }
+        .upload-btn {
+            background: #666;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            display: inline-block;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .upload-btn:active { opacity: 0.7; }
+        
+        .extra-images-preview {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .extra-img-preview {
+            width: 80px;
+            height: 80px;
+            border-radius: 6px;
+            object-fit: cover;
+            border: 2px solid #ddd;
+        }
+        
+        /* Lightbox */
+        .lightbox {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 9999;
+            flex-direction: column;
+        }
+        .lightbox.active { display: flex; }
+        .lightbox-header {
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+        .lightbox-close {
+            font-size: 30px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: white;
+            padding: 10px;
+        }
+        .lightbox-counter { font-size: 16px; }
+        .lightbox-images {
+            flex: 1;
+            display: flex;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+        }
+        .lightbox-images::-webkit-scrollbar { display: none; }
+        .lightbox-slide {
+            flex: 0 0 100%;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            scroll-snap-align: start;
+            padding: 20px;
+        }
+        .lightbox-slide img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .lightbox-footer {
+            padding: 20px;
+            text-align: center;
+            color: white;
+            font-size: 14px;
+        }
+        
+        #plain-desc {
             border: 1px solid #ccc;
             border-radius: 8px;
             padding: 14px;
             margin-top: 18px;
-            line-height: 1.45;
+            line-height: 1.6;
             font-size: 15px;
+            white-space: pre-wrap;
         }
-        #plain-desc {
-            white-space: pre-wrap; /* ✅ zachowuje odstępy */
+        
+        .selection-mode-btn {
+            background: #34c759 !important;
+            margin-top: 12px;
+        }
+        .selection-count {
+            display: inline-block;
+            background: #007aff;
+            color: white;
+            border-radius: 12px;
+            padding: 2px 10px;
+            font-size: 14px;
+            margin-left: 8px;
+        }
+        
+        .success-message {
+            background: #34c759;
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+            margin-top: 10px;
+            display: none;
         }
     </style>
 </head>
 <body>
 <div class="container">
-    <!-- Title 80 chars -->
     <h2>{{ title80 }}</h2>
-    <!-- Full Title -->
     <div class="full-title">{{ full_title }}</div>
     <button class="btn" onclick="copyText('{{ title80 }}')">📋 Copy Title</button>
-    <form action="/download-zip" method="post">
-        <div class="images-grid">
-        {% for img in images %}
-            <label class="img-wrap">
-                <input type="checkbox" name="selected" value="{{ img }}" checked>
-                <img src="/proxy?u={{ img }}">
-            </label>
-        {% endfor %}
+    
+    <!-- SKU Section -->
+    <div class="sku-section">
+        <label for="skuInput">📦 SKU (Numer produktu)</label>
+        <input type="text" id="skuInput" placeholder="Wpisz SKU..." value="{{ sku }}">
+    </div>
+    
+    <!-- Amazon Images -->
+    <div class="section-title">🖼️ Zdjęcia z Amazon</div>
+    <div class="images-scroll" id="thumbsContainer">
+    {% for img in images %}
+        <div class="img-thumb" data-index="{{ loop.index0 }}" data-url="{{ img }}" onclick="openLightbox({{ loop.index0 }})">
+            <img src="/proxy?u={{ img }}">
+            <div class="checkbox"></div>
         </div>
-        <button type="submit" class="btn download-btn">📦 Download Selected Images (.ZIP)</button>
-    </form>
-    <!-- ✅ PLAIN TEXT DESCRIPTION FOR MOBILE -->
+    {% endfor %}
+    </div>
+    
+    <!-- Extra Images (uploaded) -->
+    {% if extra_images %}
+    <div class="section-title">📸 Dodatkowe zdjęcia (wgrane)</div>
+    <div class="images-scroll">
+    {% for img in extra_images %}
+        <div class="img-thumb" onclick="openExtraImageLightbox('{{ img }}')">
+            <img src="/uploads/{{ img }}">
+        </div>
+    {% endfor %}
+    </div>
+    {% endif %}
+    
+    <!-- Upload Section -->
+    <div class="upload-section">
+        <label for="imageUpload" class="upload-btn">
+            📷 Dodaj zdjęcia z telefonu
+        </label>
+        <input type="file" id="imageUpload" accept="image/*" multiple onchange="previewImages(event)">
+        <div class="extra-images-preview" id="imagePreview"></div>
+    </div>
+    
+    <!-- Save Button -->
+    <button class="btn save-btn" onclick="saveProduct()">💾 Zapisz SKU i zdjęcia</button>
+    <div class="success-message" id="successMessage">✓ Zapisano!</div>
+    
+    <!-- Selection Mode -->
+    <button class="btn selection-mode-btn" onclick="toggleSelectionMode()">
+        ✓ Wybierz zdjęcia <span id="selectionCount" class="selection-count" style="display:none;">0</span>
+    </button>
+    <button class="btn download-btn" id="downloadBtn" onclick="downloadSelected()" style="display:none;">
+        📦 Pobierz zaznaczone (.ZIP)
+    </button>
+    
+    <!-- Description -->
     <button class="btn" onclick="copyText(document.getElementById('plain-desc').innerText)">
         📄 Copy Description
     </button>
-    <div id="plain-desc" style="white-space: pre-wrap; line-height: 1.6; margin-top: 12px;">
-{{ listing_text }}
-    </div>
+    <div id="plain-desc">{{ listing_text }}</div>
+    
     <form action="/" method="get">
         <button class="btn" style="margin-top:20px;">🔄 New Item</button>
     </form>
 </div>
 
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox">
+    <div class="lightbox-header">
+        <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+        <div class="lightbox-counter" id="lightboxCounter">1 / {{ images|length }}</div>
+        <div style="width:40px;"></div>
+    </div>
+    <div class="lightbox-images" id="lightboxImages">
+    {% for img in images %}
+        <div class="lightbox-slide">
+            <img src="/proxy?u={{ img }}" oncontextmenu="downloadImage('{{ img }}'); return false;">
+        </div>
+    {% endfor %}
+    </div>
+    <div class="lightbox-footer">Przytrzymaj zdjęcie aby pobrać</div>
+</div>
+
 <script>
+const ASIN = '{{ asin }}';
+let selectionMode = false;
+let selectedImages = new Set();
+let uploadedFiles = [];
+
 function copyText(text) {
     navigator.clipboard.writeText(text);
 }
 
-function extractASIN(url) {
-    if (/^[A-Z0-9]{10}$/i.test(url)) return url.toUpperCase();
-    const match = url.match(/\/dp\/([A-Z0-9]{10})/i);
-    return match ? match[1].toUpperCase() : null;
+// Preview uploaded images
+function previewImages(event) {
+    const preview = document.getElementById('imagePreview');
+    const files = event.target.files;
+    uploadedFiles = Array.from(files);
+    
+    preview.innerHTML = '';
+    for (let file of files) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.className = 'extra-img-preview';
+            preview.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+    }
 }
 
-// Zapisz obrazek do historii
-(function() {
-    const firstImage = '{{ images[0] if images else "" }}';
-    const title = '{{ title80 }}';
-    const urlInput = '{{ request.form.get("url", "") }}';
+// Save SKU and images
+async function saveProduct() {
+    const sku = document.getElementById('skuInput').value;
+    const formData = new FormData();
+    formData.append('asin', ASIN);
+    formData.append('sku', sku);
     
-    if (urlInput && firstImage) {
-        const asin = extractASIN(urlInput);
-        if (asin) {
-            let history = JSON.parse(localStorage.getItem('amazonHistory') || '[]');
-            const index = history.findIndex(item => item.asin === asin);
-            
-            if (index !== -1) {
-                history[index].image = firstImage;
-                history[index].title = title;
-                localStorage.setItem('amazonHistory', JSON.stringify(history));
-            }
-        }
+    // Dodaj nowe zdjęcia
+    for (let file of uploadedFiles) {
+        formData.append('images', file);
     }
-})();
+    
+    const response = await fetch('/save-product', {
+        method: 'POST',
+        body: formData
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+        const msg = document.getElementById('successMessage');
+        msg.style.display = 'block';
+        setTimeout(() => {
+            msg.style.display = 'none';
+            location.reload(); // Przeładuj żeby pokazać nowe zdjęcia
+        }, 1500);
+    }
+}
+
+// Selection mode
+function toggleSelectionMode() {
+    selectionMode = !selectionMode;
+    
+    if (selectionMode) {
+        document.querySelector('.selection-mode-btn').textContent = '✕ Anuluj wybór';
+        document.getElementById('selectionCount').style.display = 'inline-block';
+        
+        document.querySelectorAll('.img-thumb').forEach(thumb => {
+            thumb.onclick = function(e) {
+                e.stopPropagation();
+                toggleSelection(this);
+            };
+        });
+    } else {
+        document.querySelector('.selection-mode-btn').innerHTML = '✓ Wybierz zdjęcia <span id="selectionCount" class="selection-count" style="display:none;">0</span>';
+        selectedImages.clear();
+        document.querySelectorAll('.img-thumb').forEach(thumb => {
+            thumb.classList.remove('selected');
+            thumb.onclick = function() {
+                openLightbox(parseInt(this.dataset.index));
+            };
+        });
+        document.getElementById('downloadBtn').style.display = 'none';
+    }
+}
+
+function toggleSelection(thumb) {
+    const url = thumb.dataset.url;
+    
+    if (selectedImages.has(url)) {
+        selectedImages.delete(url);
+        thumb.classList.remove('selected');
+        thumb.querySelector('.checkbox').textContent = '';
+    } else {
+        selectedImages.add(url);
+        thumb.classList.add('selected');
+        thumb.querySelector('.checkbox').textContent = '✓';
+    }
+    
+    const count = selectedImages.size;
+    document.getElementById('selectionCount').textContent = count;
+    document.getElementById('downloadBtn').style.display = count > 0 ? 'block' : 'none';
+}
+
+// Download selected
+async function downloadSelected() {
+    if (selectedImages.size === 0) return;
+    
+    const formData = new FormData();
+    selectedImages.forEach(url => {
+        formData.append('selected', url);
+    });
+    
+    const response = await fetch('/download-zip', {
+        method: 'POST',
+        body: formData
+    });
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'images.zip';
+    a.click();
+}
+
+// Lightbox
+function openLightbox(index) {
+    if (selectionMode) return;
+    
+    const lightbox = document.getElementById('lightbox');
+    const container = document.getElementById('lightboxImages');
+    
+    lightbox.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    
+    container.scrollLeft = container.children[index].offsetLeft;
+    updateCounter();
+    
+    container.addEventListener('scroll', updateCounter);
+}
+
+function closeLightbox() {
+    const lightbox = document.getElementById('lightbox');
+    lightbox.classList.remove('active');
+    document.body.style.overflow = 'auto';
+}
+
+function updateCounter() {
+    const container = document.getElementById('lightboxImages');
+    const index = Math.round(container.scrollLeft / container.offsetWidth);
+    const total = container.children.length;
+    document.getElementById('lightboxCounter').textContent = `${index + 1} / ${total}`;
+}
+
+async function downloadImage(url) {
+    const response = await fetch('/proxy?u=' + encodeURIComponent(url));
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = 'image.jpg';
+    a.click();
+}
+
+function openExtraImageLightbox(filename) {
+    // Można dodać lightbox dla wgranych zdjęć
+    window.open('/uploads/' + filename, '_blank');
+}
 </script>
 </body>
 </html>
