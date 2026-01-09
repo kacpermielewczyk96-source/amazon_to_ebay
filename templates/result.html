@@ -47,6 +47,28 @@
             font-size: 15px;
             margin-top: 6px;
         }
+        .sku-with-copy {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+        .sku-with-copy input {
+            flex: 1;
+            margin-bottom: 0;
+        }
+        .copy-sku-btn {
+            padding: 12px 16px;
+            background: #007aff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .copy-sku-btn:active {
+            opacity: 0.7;
+        }
         
         .btn {
             width: 100%;
@@ -287,12 +309,15 @@
 <div class="container">
     <h2>{{ title80 }}</h2>
     <div class="full-title">{{ full_title }}</div>
-    <button class="btn" onclick="copyText('{{ title80 }}')">📋 Copy Title</button>
+    <button type="button" class="btn" onclick="copyText('{{ title80 }}')">📋 Copy Title</button>
     
     <!-- SKU & Notes Section -->
     <div class="sku-section">
         <label for="skuInput">📦 SKU (Numer produktu)</label>
-        <input type="text" id="skuInput" placeholder="Wpisz SKU..." value="{{ sku }}">
+        <div class="sku-with-copy">
+            <input type="text" id="skuInput" placeholder="Wpisz SKU..." value="{{ sku }}">
+            <button type="button" class="copy-sku-btn" onclick="copySKU()">📋 Copy</button>
+        </div>
         
         <label for="notesInput" style="margin-top: 15px;">📝 Notatka</label>
         <textarea id="notesInput" placeholder="Stan produktu, waga paczki, uwagi...">{{ notes }}</textarea>
@@ -332,14 +357,14 @@
     </div>
     
     <!-- Save Button -->
-    <button class="btn save-btn" onclick="saveProduct()">💾 Zapisz wszystko</button>
+    <button type="button" class="btn save-btn" onclick="saveProduct()">💾 Zapisz wszystko</button>
     <div class="success-message" id="successMessage">✓ Zapisano!</div>
     
     <!-- Selection Mode -->
-    <button class="btn selection-mode-btn" onclick="toggleSelectionMode()">
+    <button type="button" class="btn selection-mode-btn" onclick="toggleSelectionMode()">
         ✓ Wybierz zdjęcia do pobrania <span id="selectionCount" class="selection-count" style="display:none;">0</span>
     </button>
-    <button class="btn download-btn" id="downloadBtn" onclick="downloadSelected()" style="display:none;">
+    <button type="button" class="btn download-btn" id="downloadBtn" onclick="downloadSelected()" style="display:none;">
         📦 Pobierz zaznaczone (.ZIP)
     </button>
     
@@ -348,18 +373,18 @@
         <div class="section-title">📝 Opis produktu</div>
         <textarea class="description-editor" id="descriptionEditor">{{ listing_text }}</textarea>
         <div class="edit-mode-info">💡 Edytuj opis i kliknij "Zapisz wszystko" aby zachować zmiany</div>
-        <button class="btn" onclick="copyDescription()">📄 Copy Description</button>
+        <button type="button" class="btn" onclick="copyDescription()">📄 Copy Description</button>
     </div>
     
     <form action="/" method="get">
-        <button class="btn" style="margin-top:20px;">🔄 New Item</button>
+        <button type="submit" class="btn" style="margin-top:20px;">🔄 New Item</button>
     </form>
 </div>
 
 <!-- Lightbox -->
 <div class="lightbox" id="lightbox">
     <div class="lightbox-header">
-        <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+        <button type="button" class="lightbox-close" onclick="closeLightbox()">✕</button>
         <div class="lightbox-counter" id="lightboxCounter">1 / {{ images|length }}</div>
         <div style="width:40px;"></div>
     </div>
@@ -381,6 +406,15 @@ let uploadedFiles = [];
 
 function copyText(text) {
     navigator.clipboard.writeText(text);
+}
+
+function copySKU() {
+    const sku = document.getElementById('skuInput').value;
+    if (sku) {
+        navigator.clipboard.writeText(sku);
+    } else {
+        alert('SKU jest puste!');
+    }
 }
 
 function copyDescription() {
@@ -424,7 +458,13 @@ async function deleteExtraImage(filename) {
 }
 
 // Save SKU, notes, images and description
-async function saveProduct() {
+async function saveProduct(event) {
+    // Zapobiegnij domyślnej akcji
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    
     try {
         const sku = document.getElementById('skuInput').value;
         const notes = document.getElementById('notesInput').value;
@@ -489,6 +529,8 @@ async function saveProduct() {
         console.error('Save error:', error);
         alert('Błąd zapisu: ' + error.message);
     }
+    
+    return false;
 }
 
 // Selection mode
