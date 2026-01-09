@@ -1,185 +1,231 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>📦 Amazon → eBay Helper</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             padding: 20px;
-            background: #ffffff;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
+        }
+        .container {
+            background: white;
+            padding: 40px 30px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
         }
         h1 {
             text-align: center;
-            margin-top: 10px;
-            margin-bottom: 5px;
-            font-size: 30px;
-        }
-        p.sub {
-            text-align: center;
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 15px;
-        }
-        .box {
-            background: #f4f4f4;
-            padding: 18px;
-            border-radius: 12px;
-        }
-        input[type=text] {
-            width: 100%;
-            padding: 14px 16px;
-            font-size: 17px;
-            border-radius: 10px;
-            border: 1px solid #bcbcbc;
-            outline: none;
-            box-sizing: border-box;
-            margin-bottom: 16px;
-        }
-        button {
-            width: 100%;
-            padding: 15px;
-            font-size: 18px;
-            border-radius: 10px;
-            border: none;
-            background: #000;
-            color: white;
-            cursor: pointer;
-        }
-        button:active {
-            opacity: 0.7;
-        }
-        .paste-btn {
-            background: #007aff;
-            margin-bottom: 12px;
-        }
-        
-        /* Historia */
-        .history {
-            margin-top: 40px;
-        }
-        .history h2 {
-            font-size: 20px;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
+            font-size: 28px;
             color: #333;
         }
-        .history-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
+        .subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 30px;
         }
-        .history-item {
-            cursor: pointer;
-            border-radius: 8px;
-            overflow: hidden;
-            border: 2px solid #e0e0e0;
-            transition: border-color 0.2s;
+        .input-group {
+            position: relative;
+            margin-bottom: 20px;
         }
-        .history-item:active {
-            opacity: 0.7;
-        }
-        .history-item img {
+        input[type="text"] {
             width: 100%;
-            aspect-ratio: 1;
-            object-fit: cover;
+            padding: 15px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            outline: none;
+            transition: all 0.3s;
+        }
+        input[type="text"]:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+        }
+        .paste-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .paste-btn:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+        .btn {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 12px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #666;
+            font-size: 14px;
+            padding: 12px;
+        }
+        .btn-secondary:active {
+            background: #e0e0e0;
+        }
+        .history-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .history-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .example {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+        
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #34c759;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+            z-index: 1000;
+            animation: slideUp 0.3s ease;
+        }
+        .toast.show {
             display: block;
         }
-        .history-item .title {
-            padding: 8px;
-            font-size: 12px;
-            color: #666;
-            background: #f9f9f9;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        @keyframes slideUp {
+            from {
+                transform: translateX(-50%) translateY(100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
         }
     </style>
 </head>
 <body>
-<h1>📦 Amazon → eBay</h1>
-<p class="sub">Wklej link Amazon lub wpisz ASIN</p>
-<div class="box">
-    <button type="button" class="paste-btn" onclick="pasteFromClipboard()">📋 Wklej</button>
-    <form id="searchForm" action="/scrape" method="POST">
-        <input id="urlInput" name="url" type="text" placeholder="np. B0B5XGXXXL lub https://amazon.co.uk/...">
-        <button type="submit">Pobierz dane</button>
-    </form>
-</div>
-
-<!-- Historia -->
-<div class="history" id="historySection" style="display:none;">
-    <h2>📋 Ostatnie wyszukiwania</h2>
-    <div class="history-grid" id="historyGrid"></div>
-</div>
-
-<script>
-// Przycisk "Wklej" - POPRAWIONY (bez alertów)
-async function pasteFromClipboard() {
-    try {
-        const text = await navigator.clipboard.readText();
-        document.getElementById('urlInput').value = text.trim();
-    } catch (err) {
-        // Błąd = użytkownik nie dał zgody lub przeglądarka nie wspiera
-        // Po prostu fokusujemy pole bez alertu
-        const input = document.getElementById('urlInput');
-        input.focus();
-    }
-}
-
-// Pobierz historię z serwera
-async function loadHistory() {
-    try {
-        const response = await fetch('/api/history');
-        const history = await response.json();
-        displayHistory(history);
-    } catch (err) {
-        console.error('Błąd ładowania historii:', err);
-    }
-}
-
-// Wyświetl historię
-function displayHistory(history) {
-    const grid = document.getElementById('historyGrid');
-    const section = document.getElementById('historySection');
-    
-    // Filtruj tylko te z obrazkami
-    const withImages = history.filter(item => item.image);
-    
-    if (withImages.length === 0) {
-        section.style.display = 'none';
-        return;
-    }
-    
-    section.style.display = 'block';
-    grid.innerHTML = '';
-    
-    withImages.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'history-item';
-        div.onclick = () => {
-            document.getElementById('urlInput').value = item.asin;
-            document.getElementById('searchForm').submit();
-        };
+    <div class="container">
+        <h1>🔍 Amazon → eBay</h1>
+        <p class="subtitle">Konwerter produktów z Amazon UK na eBay</p>
         
-        div.innerHTML = `
-            <img src="/proxy?u=${encodeURIComponent(item.image)}" alt="${item.title || item.asin}">
-            <div class="title">${item.title || item.asin}</div>
-        `;
+        <form action="/scrape" method="post">
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    name="url" 
+                    id="urlInput"
+                    placeholder="Wklej URL lub ASIN..."
+                    required
+                >
+                <button type="button" class="paste-btn" onclick="pasteFromClipboard()">📋 Wklej</button>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">
+                🚀 Konwertuj
+            </button>
+        </form>
         
-        grid.appendChild(div);
-    });
-}
+        <button type="button" class="btn btn-secondary" onclick="clearCache()">
+            🗑️ Wyczyść Cache
+        </button>
+        
+        <div class="history-link">
+            <a href="/history">📚 Historia wyszukiwań</a>
+        </div>
+        
+        <div class="example">
+            Przykład: B0ABCD1234 lub pełny URL
+        </div>
+    </div>
+    
+    <div class="toast" id="toast"></div>
 
-// Załaduj historię przy starcie
-loadHistory();
+    <script>
+        async function pasteFromClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                document.getElementById('urlInput').value = text.trim();
+                document.getElementById('urlInput').focus();
+            } catch (err) {
+                alert('Nie udało się wkleić. Użyj Ctrl+V lub długie przytrzymanie.');
+            }
+        }
 
-// Odświeżaj historię co 30 sekund
-setInterval(loadHistory, 30000);
-</script>
+        // Auto-focus na input
+        window.addEventListener('load', () => {
+            document.getElementById('urlInput').focus();
+        });
+        
+        // Clear cache function
+        async function clearCache() {
+            if (!confirm('Czy na pewno wyczyścić cache? Wszystkie zapisane produkty zostaną ponownie pobrane z Amazon.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/clear-cache', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('✓ Cache wyczyszczony! (' + result.deleted + ' produktów)');
+                } else {
+                    throw new Error(result.error || 'Błąd czyszczenia cache');
+                }
+            } catch (error) {
+                alert('Błąd: ' + error.message);
+            }
+        }
+        
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+    </script>
 </body>
 </html>
