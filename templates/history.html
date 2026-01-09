@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 15px;
+        }
+        .container { max-width: 800px; margin: auto; }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .back-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+        }
+        .product-card {
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            display: flex;
+            gap: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .product-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .product-image {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        .product-info {
+            flex: 1;
+        }
+        .product-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        .product-meta {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 3px;
+        }
+        .product-date {
+            font-size: 12px;
+            color: #999;
+        }
+        .empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 Historia wyszukiwań</h1>
+            <a href="/" class="back-btn">← Powrót</a>
+        </div>
+        
+        {% if history %}
+            {% for item in history %}
+            <form action="/scrape" method="post" style="margin: 0;">
+                <input type="hidden" name="url" value="{{ item.asin }}">
+                <button type="submit" class="product-card" style="width: 100%; text-align: left; border: none; cursor: pointer;">
+                    {% if item.image %}
+                    <img src="{{ item.image }}" class="product-image" alt="Product">
+                    {% else %}
+                    <div class="product-image" style="background: #f0f0f0;"></div>
+                    {% endif %}
+                    
+                    <div class="product-info">
+                        <div class="product-title">{{ item.title }}</div>
+                        <div class="product-meta">ASIN: {{ item.asin }}</div>
+                        {% if item.sku %}
+                        <div class="product-meta">SKU: {{ item.sku }}</div>
+                        {% endif %}
+                        <div class="product-date">{{ item.timestamp }}</div>
+                    </div>
+                </button>
+            </form>
+            {% endfor %}
+        {% else %}
+            <div class="empty">
+                <h2>🔍 Brak historii</h2>
+                <p>Zacznij od wyszukania produktu!</p>
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>
