@@ -2,6 +2,9 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -399,6 +402,10 @@
 </div>
 
 <script>
+// ============================================
+// VERSION 2.0 - FIXED METHOD NOT ALLOWED
+// ============================================
+
 const ASIN = '{{ asin }}';
 let selectionMode = false;
 let selectedImages = new Set();
@@ -424,6 +431,8 @@ function copyDescription() {
 
 // Preview uploaded images
 function previewImages(event) {
+    event.stopPropagation(); // BLOKADA propagacji
+    
     const preview = document.getElementById('imagePreview');
     const files = event.target.files;
     uploadedFiles = Array.from(files);
@@ -439,6 +448,8 @@ function previewImages(event) {
         };
         reader.readAsDataURL(file);
     }
+    
+    return false; // BLOKADA submit
 }
 
 // Delete extra image
@@ -457,16 +468,13 @@ async function deleteExtraImage(filename) {
     }
 }
 
-// Save SKU, notes, images and description - Z DEBUGOWANIEM
+// Save SKU, notes, images and description
 async function saveProduct(event) {
-    console.log('=== saveProduct STARTED ===');
-    console.log('Event:', event);
-    
-    // Zapobiegnij domyślnej akcji
+    // KRYTYCZNE: Blokada wszystkich eventów
     if (event) {
         event.preventDefault();
         event.stopPropagation();
-        console.log('Event prevented');
+        event.stopImmediatePropagation();
     }
     
     try {
@@ -474,26 +482,18 @@ async function saveProduct(event) {
         const notes = document.getElementById('notesInput').value;
         const description = document.getElementById('descriptionEditor').value;
         
-        console.log('Data to save:', { sku, notes, descriptionLength: description.length, filesCount: uploadedFiles.length });
-        
         // 1. Zapisz opis
-        console.log('Saving description...');
         const descResponse = await fetch('/save-description', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ asin: ASIN, description: description })
         });
         
-        console.log('Description response status:', descResponse.status);
-        
         if (!descResponse.ok) {
-            const errorText = await descResponse.text();
-            console.error('Description error:', errorText);
-            throw new Error('Failed to save description: ' + errorText);
+            throw new Error('Failed to save description');
         }
         
         // 2. Zapisz SKU, notes i zdjęcia
-        console.log('Saving product data...');
         const formData = new FormData();
         formData.append('asin', ASIN);
         formData.append('sku', sku);
@@ -502,47 +502,35 @@ async function saveProduct(event) {
         // Dodaj pliki
         for (let file of uploadedFiles) {
             formData.append('images', file);
-            console.log('Added file:', file.name);
         }
         
-        console.log('Sending product request to /save-product...');
         const productResponse = await fetch('/save-product', {
             method: 'POST',
             body: formData
         });
         
-        console.log('Product response status:', productResponse.status);
-        console.log('Product response headers:', Array.from(productResponse.headers.entries()));
-        
         if (!productResponse.ok) {
             const errorText = await productResponse.text();
-            console.error('Product save error response:', errorText);
-            throw new Error('Failed to save product: HTTP ' + productResponse.status + ' - ' + errorText);
+            throw new Error('Failed to save: ' + errorText);
         }
         
         const result = await productResponse.json();
-        console.log('Product save result:', result);
         
         if (result.success) {
             // Pokaż komunikat sukcesu
             const msg = document.getElementById('successMessage');
             msg.style.display = 'block';
-            console.log('Success message shown');
             
             // Wyczyść preview zdjęć
             uploadedFiles = [];
             document.getElementById('imagePreview').innerHTML = '';
             document.getElementById('imageUpload').value = '';
-            console.log('Cleared upload preview');
             
             // Ukryj komunikat i przeładuj TYLKO jeśli były nowe zdjęcia
             setTimeout(() => {
                 msg.style.display = 'none';
                 if (result.images_saved > 0) {
-                    console.log('Reloading page because', result.images_saved, 'images were saved');
                     location.reload();
-                } else {
-                    console.log('Not reloading - no new images');
                 }
             }, 1500);
         } else {
@@ -550,16 +538,13 @@ async function saveProduct(event) {
         }
         
     } catch (error) {
-        console.error('=== SAVE ERROR ===');
-        console.error('Error type:', error.constructor.name);
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
+        console.error('Save error:', error);
         alert('Błąd zapisu: ' + error.message);
     }
     
-    console.log('=== saveProduct FINISHED ===');
     return false;
 }
+
 // Selection mode
 function toggleSelectionMode() {
     selectionMode = !selectionMode;
