@@ -358,29 +358,50 @@ def scrape():
 @app.route("/save-product", methods=["POST"])
 def save_product():
     """Zapisz SKU, notes i dodatkowe zdjęcia"""
-    asin = request.form.get("asin")
-    sku = request.form.get("sku", "").strip()
-    notes = request.form.get("notes", "").strip()
+    try:
+        asin = request.form.get("asin")
+        sku = request.form.get("sku", "").strip()
+        notes = request.form.get("notes", "").strip()
+        
+        if not asin:
+            return jsonify({'success': False, 'error': 'Missing ASIN'}), 400
+        
+        # Aktualizuj SKU i notes
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('UPDATE search_history SET sku = ?, notes = ?, timestamp = ? WHERE asin = ?', 
+                  (sku, notes, datetime.now(), asin))
+        conn.commit()
+        conn.close()
+        
+        # Zapisz nowe zdjęcia
+        saved_count = 0
+        if 'images' in request.files:
+            files = request.files.getlist('images')
+            for file in files:
+                if file and file.filename:
+                    # Bezpieczna nazwa pliku
+                    original_filename = secure_filename(file.filename)
+                    timestamp = str(int(datetime.now().timestamp()))
+                    filename = f"{asin}_{timestamp}_{original_filename}"
+                    filepath = os.path.join(UPLOADS_DIR, filename)
+                    
+                    # Zapisz plik
+                    file.save(filepath)
+                    
+                    # Dodaj do bazy
+                    add_product_image(asin, filename)
+                    saved_count += 1
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Zapisano!',
+            'images_saved': saved_count
+        })
     
-    # Aktualizuj SKU i notes
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('UPDATE search_history SET sku = ?, notes = ?, timestamp = ? WHERE asin = ?', 
-              (sku, notes, datetime.now(), asin))
-    conn.commit()
-    conn.close()
-    
-    # Zapisz nowe zdjęcia
-    if 'images' in request.files:
-        files = request.files.getlist('images')
-        for file in files:
-            if file and file.filename:
-                filename = secure_filename(f"{asin}_{datetime.now().timestamp()}_{file.filename}")
-                filepath = os.path.join(UPLOADS_DIR, filename)
-                file.save(filepath)
-                add_product_image(asin, filename)
-    
-    return jsonify({'success': True, 'message': 'Zapisano!'})
+    except Exception as e:
+        print(f"Error in save_product: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route("/delete-image", methods=["POST"])
 def delete_image():
