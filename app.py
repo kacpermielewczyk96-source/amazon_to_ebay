@@ -495,6 +495,34 @@ def download_zip():
         as_attachment=True,
         download_name="images.zip"
     )
+@app.route("/clear-cache", methods=["POST"])
+def clear_cache():
+    """Wyczyść cache scraped products"""
+    try:
+        deleted_count = 0
+        
+        # Usuń wszystkie pliki z folderu cache
+        if os.path.exists(CACHE_DIR):
+            for filename in os.listdir(CACHE_DIR):
+                filepath = os.path.join(CACHE_DIR, filename)
+                if os.path.isfile(filepath) and filename.endswith('.json'):
+                    os.remove(filepath)
+                    deleted_count += 1
+        
+        return jsonify({
+            'success': True,
+            'deleted': deleted_count,
+            'message': f'Wyczyszczono {deleted_count} produktów z cache'
+        }), 200
+    
+    except Exception as e:
+        print(f"Error clearing cache: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+@app.route("/history")
+def history_page():
+    """Strona z historią wyszukiwań"""
+    history = get_history_from_db(limit=50)
+    return render_template("history.html", history=history)
 
 if __name__ == "__main__":
     app.run(debug=True, port=8000)
