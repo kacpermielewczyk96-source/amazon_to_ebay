@@ -338,17 +338,17 @@
     </div>
     
     <!-- Extra Images (uploaded) -->
-    {% if extra_images %}
-    <div class="section-title">📸 Dodatkowe zdjęcia (wgrane)</div>
-    <div class="images-scroll">
-    {% for img in extra_images %}
-        <div class="img-thumb">
-            <img src="/uploads/{{ img }}" onclick="openExtraImageLightbox('{{ img }}')">
-            <div class="delete-btn" onclick="deleteExtraImage('{{ img }}')">✕</div>
+    <div id="extraImagesSection" {% if not extra_images %}style="display:none;"{% endif %}>
+        <div class="section-title">📸 Dodatkowe zdjęcia (wgrane)</div>
+        <div class="images-scroll" id="extraImagesContainer">
+        {% for img in extra_images %}
+            <div class="img-thumb" data-filename="{{ img }}">
+                <img src="/uploads/{{ img }}" onclick="openExtraImageLightbox('{{ img }}')">
+                <div class="delete-btn" onclick="deleteExtraImage('{{ img }}', this.parentElement)">✕</div>
+            </div>
+        {% endfor %}
         </div>
-    {% endfor %}
     </div>
-    {% endif %}
     
     <!-- Upload Section -->
     <div class="upload-section">
@@ -379,9 +379,7 @@
         <button type="button" class="btn" onclick="copyDescription()">📄 Copy Description</button>
     </div>
     
-    <form action="/" method="get">
-        <button type="submit" class="btn" style="margin-top:20px;">🔄 New Item</button>
-    </form>
+    <button type="button" class="btn" style="margin-top:20px;" onclick="window.location.href='/'">🔄 New Item</button>
 </div>
 
 <!-- Lightbox -->
@@ -402,10 +400,7 @@
 </div>
 
 <script>
-// ============================================
-// VERSION 2.0 - FIXED METHOD NOT ALLOWED
-// ============================================
-
+// VERSION 3.0 - NO RELOAD, NO REDIRECTS
 const ASIN = '{{ asin }}';
 let selectionMode = false;
 let selectedImages = new Set();
@@ -429,10 +424,7 @@ function copyDescription() {
     navigator.clipboard.writeText(text);
 }
 
-// Preview uploaded images
 function previewImages(event) {
-    event.stopPropagation(); // BLOKADA propagacji
-    
     const preview = document.getElementById('imagePreview');
     const files = event.target.files;
     uploadedFiles = Array.from(files);
@@ -448,50 +440,45 @@ function previewImages(event) {
         };
         reader.readAsDataURL(file);
     }
-    
-    return false; // BLOKADA submit
 }
 
-// Delete extra image
-async function deleteExtraImage(filename) {
+async function deleteExtraImage(filename, thumbElement) {
     if (!confirm('Usunąć to zdjęcie?')) return;
     
-    const response = await fetch('/delete-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ asin: ASIN, filename: filename })
-    });
-    
-    const result = await response.json();
-    if (result.success) {
-        location.reload();
+    try {
+        const response = await fetch('/delete-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ asin: ASIN, filename: filename })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            thumbElement.remove();
+            
+            // Jeśli nie ma więcej zdjęć, ukryj sekcję
+            const container = document.getElementById('extraImagesContainer');
+            if (container.children.length === 0) {
+                document.getElementById('extraImagesSection').style.display = 'none';
+            }
+        }
+    } catch (error) {
+        alert('Błąd usuwania: ' + error.message);
     }
 }
 
-// Save SKU, notes, images and description
-async function saveProduct(event) {
-    // KRYTYCZNE: Blokada wszystkich eventów
-    if (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-    }
-    
+async function saveProduct() {
     try {
         const sku = document.getElementById('skuInput').value;
         const notes = document.getElementById('notesInput').value;
         const description = document.getElementById('descriptionEditor').value;
         
         // 1. Zapisz opis
-        const descResponse = await fetch('/save-description', {
+        await fetch('/save-description', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ asin: ASIN, description: description })
         });
-        
-        if (!descResponse.ok) {
-            throw new Error('Failed to save description');
-        }
         
         // 2. Zapisz SKU, notes i zdjęcia
         const formData = new FormData();
@@ -499,7 +486,6 @@ async function saveProduct(event) {
         formData.append('sku', sku);
         formData.append('notes', notes);
         
-        // Dodaj pliki
         for (let file of uploadedFiles) {
             formData.append('images', file);
         }
@@ -509,40 +495,46 @@ async function saveProduct(event) {
             body: formData
         });
         
-        if (!productResponse.ok) {
-            const errorText = await productResponse.text();
-            throw new Error('Failed to save: ' + errorText);
-        }
-        
         const result = await productResponse.json();
         
         if (result.success) {
-            // Pokaż komunikat sukcesu
             const msg = document.getElementById('successMessage');
             msg.style.display = 'block';
             
-            // Wyczyść preview zdjęć
+            // Jeśli były nowe zdjęcia - dodaj je do DOM
+            if (result.images_saved > 0 && result.uploaded_images) {
+                const section = document.getElementById('extraImagesSection');
+                const container = document.getElementById('extraImagesContainer');
+                
+                section.style.display = 'block';
+                
+                result.uploaded_images.forEach(filename => {
+                    const thumb = document.createElement('div');
+                    thumb.className = 'img-thumb';
+                    thumb.dataset.filename = filename;
+                    thumb.innerHTML = `
+                        <img src="/uploads/${filename}" onclick="openExtraImageLightbox('${filename}')">
+                        <div class="delete-btn" onclick="deleteExtraImage('${filename}', this.parentElement)">✕</div>
+                    `;
+                    container.appendChild(thumb);
+                });
+            }
+            
+            // Wyczyść preview
             uploadedFiles = [];
             document.getElementById('imagePreview').innerHTML = '';
             document.getElementById('imageUpload').value = '';
             
-            // Ukryj komunikat i przeładuj TYLKO jeśli były nowe zdjęcia
             setTimeout(() => {
                 msg.style.display = 'none';
-                if (result.images_saved > 0) {
-                    location.reload();
-                }
-            }, 1500);
+            }, 2000);
         } else {
             throw new Error(result.error || 'Unknown error');
         }
         
     } catch (error) {
-        console.error('Save error:', error);
         alert('Błąd zapisu: ' + error.message);
     }
-    
-    return false;
 }
 
 // Selection mode
@@ -591,7 +583,6 @@ function toggleSelection(thumb) {
     document.getElementById('downloadBtn').style.display = count > 0 ? 'block' : 'none';
 }
 
-// Download selected
 async function downloadSelected() {
     if (selectedImages.size === 0) return;
     
@@ -613,7 +604,6 @@ async function downloadSelected() {
     a.click();
 }
 
-// Lightbox
 function openLightbox(index) {
     if (selectionMode) return;
     
