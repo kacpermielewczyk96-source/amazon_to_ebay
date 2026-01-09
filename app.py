@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file, Response, jsonify, redirect, url_for
+from flask import Flask, render_template, request, send_file, Response, jsonify
 from io import BytesIO
 import re
 import json
@@ -357,7 +357,7 @@ def scrape():
 
 @app.route("/save-product", methods=["POST"])
 def save_product():
-    """Zapisz SKU, notes i dodatkowe zdjęcia"""
+    """Zapisz SKU, notes i dodatkowe zdjęcia - ZWRACA JSON, NIE PRZEKIEROWUJE"""
     try:
         asin = request.form.get("asin")
         sku = request.form.get("sku", "").strip()
@@ -393,11 +393,12 @@ def save_product():
                     add_product_image(asin, filename)
                     saved_count += 1
         
+        # ZWRÓĆ JSON, NIE PRZEKIEROWUJ
         return jsonify({
             'success': True, 
             'message': 'Zapisano!',
             'images_saved': saved_count
-        })
+        }), 200
     
     except Exception as e:
         print(f"Error in save_product: {str(e)}")
@@ -406,38 +407,46 @@ def save_product():
 @app.route("/delete-image", methods=["POST"])
 def delete_image():
     """Usuń dodatkowe zdjęcie"""
-    data = request.get_json()
-    asin = data.get('asin')
-    filename = data.get('filename')
+    try:
+        data = request.get_json()
+        asin = data.get('asin')
+        filename = data.get('filename')
+        
+        # Usuń z bazy
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('DELETE FROM product_images WHERE asin = ? AND image_path = ?', (asin, filename))
+        conn.commit()
+        conn.close()
+        
+        # Usuń plik
+        filepath = os.path.join(UPLOADS_DIR, filename)
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        
+        return jsonify({'success': True}), 200
     
-    # Usuń z bazy
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('DELETE FROM product_images WHERE asin = ? AND image_path = ?', (asin, filename))
-    conn.commit()
-    conn.close()
-    
-    # Usuń plik
-    filepath = os.path.join(UPLOADS_DIR, filename)
-    if os.path.exists(filepath):
-        os.remove(filepath)
-    
-    return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route("/save-description", methods=["POST"])
 def save_description():
     """Zapisz edytowany opis"""
-    data = request.get_json()
-    asin = data.get('asin')
-    description = data.get('description')
+    try:
+        data = request.get_json()
+        asin = data.get('asin')
+        description = data.get('description')
+        
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('UPDATE search_history SET custom_description = ? WHERE asin = ?', (description, asin))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True}), 200
     
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('UPDATE search_history SET custom_description = ? WHERE asin = ?', (description, asin))
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route("/uploads/<filename>")
 def uploaded_file(filename):
