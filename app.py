@@ -11,7 +11,6 @@ from hashlib import md5
 import sqlite3
 from datetime import datetime
 from werkzeug.utils import secure_filename
-import base64
 
 app = Flask(__name__)
 
@@ -28,7 +27,7 @@ os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 # ----------------- DATABASE -----------------
 DB_PATH = "history.db"
-MAX_HISTORY = 50  # Zwiększone z 15 do 50
+MAX_HISTORY = 50
 
 def init_db():
     """Inicjalizacja bazy danych"""
@@ -43,6 +42,7 @@ def init_db():
             title TEXT,
             image_url TEXT,
             sku TEXT,
+            custom_description TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -131,7 +131,7 @@ def get_product_details(asin):
     """Pobierz szczegóły produktu z bazy"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT asin, title, image_url, sku FROM search_history WHERE asin = ?', (asin,))
+    c.execute('SELECT asin, title, image_url, sku, custom_description FROM search_history WHERE asin = ?', (asin,))
     row = c.fetchone()
     conn.close()
     
@@ -140,7 +140,8 @@ def get_product_details(asin):
             'asin': row[0],
             'title': row[1],
             'image_url': row[2],
-            'sku': row[3] or ''
+            'sku': row[3] or '',
+            'custom_description': row[4] or ''
         }
     return None
 
@@ -183,6 +184,8 @@ def cache_save(key, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+# ----------------- helpers -----------------
+
 def truncate_title_80(s: str) -> str:
     s = (s or "").strip()
     if len(s) <= 80:
@@ -194,12 +197,15 @@ def truncate_title_80(s: str) -> str:
 
 def extract_highres_images(html: str):
     urls = []
+
     for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
         urls.append(m.group(1).replace("\\u0026", "&"))
+
     for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
         u = m.group(1).replace("\\u0026", "&")
         if u not in urls:
             urls.append(u)
+
     dyn = re.search(r'data-a-dynamic-image="({[^"]+})"', html)
     if dyn:
         try:
@@ -207,6 +213,7 @@ def extract_highres_images(html: str):
             urls.extend(obj.keys())
         except:
             pass
+
     clean, seen = [], set()
     for u in urls:
         u = u.split("?", 1)[0]
@@ -214,7 +221,10 @@ def extract_highres_images(html: str):
         if u.lower().endswith((".jpg", ".jpeg", ".png", ".webp")) and u not in seen:
             seen.add(u)
             clean.append(u)
+
     return clean[:12]
+
+# ----------------- core scraper -----------------
 
 def fetch_amazon(url_or_asin: str):
     url_or_asin = (url_or_asin or "").strip()
@@ -237,20 +247,29 @@ def fetch_amazon(url_or_asin: str):
         "Authorization": f"Bearer {BRIGHTDATA_API_KEY}",
         "Content-Type": "application/json"
     }
+
     payload = {
         "zone": BRIGHTDATA_ZONE,
         "url": amazon_url,
         "format": "raw"
     }
 
-    r = requests.post(BRIGHTDATA_ENDPOINT, headers=headers, json=payload, timeout=60)
+    r = requests.post(
+        BRIGHTDATA_ENDPOINT,
+        headers=headers,
+        json=payload,
+        timeout=60
+    )
     r.raise_for_status()
     html = r.text
+
     soup = BeautifulSoup(html, "html.parser")
 
     title_tag = soup.find("span", {"id": "productTitle"})
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
+
     images = extract_highres_images(html)
+
     bullets = [
         li.get_text(" ", strip=True)
         for li in soup.select("#feature-bullets li")
@@ -270,21 +289,25 @@ def fetch_amazon(url_or_asin: str):
         "bullets": bullets,
         "meta": meta
     }
+
     cache_save(cache_key, result)
     return result
 
 def generate_listing_text(title, meta, bullets):
     brand = meta.get("Brand", "")
     colour = meta.get("Colour", "")
+
     lines = [title, ""]
     if brand: lines.append(f"Brand: {brand}")
     if colour: lines.append(f"Colour: {colour}")
     lines.append("")
+
     if bullets:
         lines.append("✨ Key Features\n")
         for b in bullets:
             lines.append(f"⚫️ {b}")
             lines.append("")
+
     lines.append("📦 Fast Dispatch from UK   |   🚚 Tracked Delivery Included")
     return "\n".join(lines)
 
@@ -311,9 +334,12 @@ def scrape():
     first_image = data["images"][0] if data["images"] else None
     save_to_history_db(asin, truncate_title_80(data["title"]), first_image)
     
-    # Pobierz istniejące dane (SKU, dodatkowe zdjęcia)
+    # Pobierz istniejące dane (SKU, dodatkowe zdjęcia, custom opis)
     existing = get_product_details(asin)
     extra_images = get_product_images(asin)
+    
+    # Użyj custom description jeśli istnieje, inaczej wygeneruj nowy
+    listing_text = existing['custom_description'] if existing and existing['custom_description'] else generate_listing_text(data["title"], data["meta"], data["bullets"])
     
     return render_template(
         "result.html",
@@ -323,7 +349,7 @@ def scrape():
         images=data["images"],
         extra_images=extra_images,
         sku=existing['sku'] if existing else '',
-        listing_text=generate_listing_text(data["title"], data["meta"], data["bullets"])
+        listing_text=listing_text
     )
 
 @app.route("/save-product", methods=["POST"])
@@ -352,6 +378,42 @@ def save_product():
     
     return jsonify({'success': True, 'message': 'Zapisano!'})
 
+@app.route("/delete-image", methods=["POST"])
+def delete_image():
+    """Usuń dodatkowe zdjęcie"""
+    data = request.get_json()
+    asin = data.get('asin')
+    filename = data.get('filename')
+    
+    # Usuń z bazy
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('DELETE FROM product_images WHERE asin = ? AND image_path = ?', (asin, filename))
+    conn.commit()
+    conn.close()
+    
+    # Usuń plik
+    filepath = os.path.join(UPLOADS_DIR, filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+    
+    return jsonify({'success': True})
+
+@app.route("/save-description", methods=["POST"])
+def save_description():
+    """Zapisz edytowany opis"""
+    data = request.get_json()
+    asin = data.get('asin')
+    description = data.get('description')
+    
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('UPDATE search_history SET custom_description = ? WHERE asin = ?', (description, asin))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True})
+
 @app.route("/uploads/<filename>")
 def uploaded_file(filename):
     """Serwuj wgrane zdjęcia"""
@@ -362,6 +424,7 @@ def uploaded_file(filename):
 
 @app.route("/api/history")
 def api_history():
+    """API endpoint do pobierania historii"""
     history = get_history_from_db(limit=50)
     return jsonify(history)
 
@@ -384,9 +447,17 @@ def download_zip():
     mem = BytesIO()
     with zipfile.ZipFile(mem, "w") as z:
         for i, u in enumerate(request.form.getlist("selected")):
-            z.writestr(f"image_{i+1}.jpg", requests.get(u, timeout=25).content)
+            z.writestr(
+                f"image_{i+1}.jpg",
+                requests.get(u, timeout=25).content
+            )
     mem.seek(0)
-    return send_file(mem, mimetype="application/zip", as_attachment=True, download_name="images.zip")
+    return send_file(
+        mem,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name="images.zip"
+    )
 
 if __name__ == "__main__":
     app.run(debug=True, port=8000)
