@@ -17,7 +17,7 @@
             margin-bottom: 14px;
         }
         
-        /* SKU Field */
+        /* SKU & Notes Section */
         .sku-section {
             background: #f9f9f9;
             padding: 15px;
@@ -32,13 +32,20 @@
             margin-bottom: 6px;
             color: #333;
         }
-        .sku-section input {
+        .sku-section input, .sku-section textarea {
             width: 100%;
             padding: 12px;
             font-size: 16px;
             border: 1px solid #ccc;
             border-radius: 6px;
             outline: none;
+            font-family: inherit;
+        }
+        .sku-section textarea {
+            min-height: 80px;
+            resize: vertical;
+            font-size: 15px;
+            margin-top: 6px;
         }
         
         .btn {
@@ -282,10 +289,13 @@
     <div class="full-title">{{ full_title }}</div>
     <button class="btn" onclick="copyText('{{ title80 }}')">📋 Copy Title</button>
     
-    <!-- SKU Section -->
+    <!-- SKU & Notes Section -->
     <div class="sku-section">
         <label for="skuInput">📦 SKU (Numer produktu)</label>
         <input type="text" id="skuInput" placeholder="Wpisz SKU..." value="{{ sku }}">
+        
+        <label for="notesInput" style="margin-top: 15px;">📝 Notatka</label>
+        <textarea id="notesInput" placeholder="Stan produktu, waga paczki, uwagi...">{{ notes }}</textarea>
     </div>
     
     <!-- Amazon Images -->
@@ -413,9 +423,10 @@ async function deleteExtraImage(filename) {
     }
 }
 
-// Save SKU, images and description
+// Save SKU, notes, images and description
 async function saveProduct() {
     const sku = document.getElementById('skuInput').value;
+    const notes = document.getElementById('notesInput').value;
     const description = document.getElementById('descriptionEditor').value;
     
     // Zapisz opis
@@ -425,10 +436,11 @@ async function saveProduct() {
         body: JSON.stringify({ asin: ASIN, description: description })
     });
     
-    // Zapisz SKU i zdjęcia
+    // Zapisz SKU, notes i zdjęcia
     const formData = new FormData();
     formData.append('asin', ASIN);
     formData.append('sku', sku);
+    formData.append('notes', notes);
     
     for (let file of uploadedFiles) {
         formData.append('images', file);
