@@ -10,14 +10,15 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
             padding: 20px;
         }
         .container {
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
             padding: 40px 30px;
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
             max-width: 500px;
             width: 100%;
         }
@@ -25,7 +26,7 @@
             text-align: center;
             margin-bottom: 10px;
             font-size: 28px;
-            color: #333;
+            color: #1e3c72;
         }
         .subtitle {
             text-align: center;
@@ -47,15 +48,15 @@
             transition: all 0.3s;
         }
         input[type="text"]:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+            border-color: #2a5298;
+            box-shadow: 0 0 0 3px rgba(42,82,152,0.1);
         }
         .paste-btn {
             position: absolute;
             right: 10px;
             top: 50%;
             transform: translateY(-50%);
-            background: #667eea;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
             color: white;
             border: none;
             padding: 8px 16px;
@@ -79,8 +80,12 @@
             margin-bottom: 12px;
         }
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
             color: white;
+            box-shadow: 0 4px 15px rgba(30,60,114,0.4);
+        }
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px rgba(30,60,114,0.5);
         }
         .btn-primary:active {
             transform: scale(0.98);
@@ -99,7 +104,7 @@
             margin-top: 20px;
         }
         .history-link a {
-            color: #667eea;
+            color: #2a5298;
             text-decoration: none;
             font-size: 14px;
             font-weight: 500;
