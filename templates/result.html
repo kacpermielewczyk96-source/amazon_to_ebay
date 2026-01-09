@@ -10,10 +10,24 @@
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
             padding: 15px; 
-            background: #fff;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
+            min-height: 100vh;
         }
-        .container { max-width: 600px; margin: auto; }
-        h2 { margin-bottom: 6px; font-size: 22px; font-weight: 700; }
+        .container { 
+            max-width: 600px; 
+            margin: auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+        h2 { 
+            margin-bottom: 6px; 
+            font-size: 22px; 
+            font-weight: 700;
+            color: #1e3c72;
+        }
         .full-title {
             font-size: 14px;
             color: #666;
@@ -24,25 +38,31 @@
         .sku-section {
             background: #f9f9f9;
             padding: 15px;
-            border-radius: 8px;
+            border-radius: 12px;
             margin-top: 12px;
             margin-bottom: 12px;
+            border: 1px solid #e0e0e0;
         }
         .sku-section label {
             display: block;
             font-size: 14px;
             font-weight: 600;
             margin-bottom: 6px;
-            color: #333;
+            color: #1e3c72;
         }
         .sku-section input, .sku-section textarea {
             width: 100%;
             padding: 12px;
             font-size: 16px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
             outline: none;
             font-family: inherit;
+            transition: all 0.3s;
+        }
+        .sku-section input:focus, .sku-section textarea:focus {
+            border-color: #2a5298;
+            box-shadow: 0 0 0 3px rgba(42,82,152,0.1);
         }
         .sku-section textarea {
             min-height: 80px;
@@ -61,32 +81,48 @@
         }
         .copy-sku-btn {
             padding: 12px 16px;
-            background: #007aff;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
             color: white;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 14px;
             cursor: pointer;
             white-space: nowrap;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(30,60,114,0.3);
         }
         .copy-sku-btn:active {
-            opacity: 0.7;
+            transform: scale(0.95);
         }
         
         .btn {
             width: 100%;
-            background: #007aff;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
             color: white;
             border: none;
-            border-radius: 8px;
-            padding: 12px;
+            border-radius: 10px;
+            padding: 14px;
             font-size: 16px;
+            font-weight: 600;
             margin-top: 12px;
             cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(30,60,114,0.4);
         }
-        .btn:active { opacity: 0.7; }
-        .download-btn { background: black !important; }
-        .save-btn { background: #34c759 !important; font-weight: 600; }
+        .btn:hover {
+            box-shadow: 0 6px 20px rgba(30,60,114,0.5);
+        }
+        .btn:active { 
+            transform: scale(0.98);
+        }
+        .download-btn { 
+            background: linear-gradient(135deg, #1f1f1f 0%, #434343 100%) !important;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4) !important;
+        }
+        .save-btn { 
+            background: linear-gradient(135deg, #34c759 0%, #28a745 100%) !important;
+            box-shadow: 0 4px 15px rgba(52,199,89,0.4) !important;
+        }
         
         /* Galeria - horizontal scroll */
         .section-title {
@@ -94,7 +130,7 @@
             font-weight: 600;
             margin-top: 20px;
             margin-bottom: 10px;
-            color: #333;
+            color: #1e3c72;
         }
         .images-scroll {
             display: flex;
@@ -111,11 +147,19 @@
             height: 120px;
             position: relative;
             scroll-snap-align: start;
-            border-radius: 8px;
+            border-radius: 12px;
             overflow: hidden;
             border: 2px solid #e0e0e0;
+            transition: all 0.2s;
         }
-        .img-thumb.selected { border-color: #007aff; }
+        .img-thumb:hover {
+            border-color: #2a5298;
+            transform: scale(1.02);
+        }
+        .img-thumb.selected { 
+            border-color: #2a5298;
+            box-shadow: 0 0 0 3px rgba(42,82,152,0.2);
+        }
         .img-thumb img {
             width: 100%;
             height: 100%;
@@ -137,8 +181,8 @@
             border: 2px solid #ddd;
         }
         .img-thumb.selected .checkbox {
-            background: #007aff;
-            border-color: #007aff;
+            background: #2a5298;
+            border-color: #2a5298;
             color: white;
         }
         
@@ -158,43 +202,51 @@
             color: white;
             cursor: pointer;
             border: 2px solid white;
+            transition: all 0.2s;
         }
         .img-thumb .delete-btn:active {
-            opacity: 0.7;
+            transform: scale(0.9);
         }
         
         /* Upload section */
         .upload-section {
-            background: #f0f0f0;
+            background: #f9f9f9;
             padding: 20px;
-            border-radius: 8px;
+            border-radius: 12px;
             margin-top: 15px;
             text-align: center;
+            border: 2px dashed #e0e0e0;
         }
         .upload-section input[type="file"] {
             display: none;
         }
         .upload-btn {
-            background: #666;
+            background: linear-gradient(135deg, #666 0%, #888 100%);
             color: white;
             padding: 12px 20px;
-            border-radius: 6px;
+            border-radius: 8px;
             display: inline-block;
             cursor: pointer;
             font-size: 16px;
+            font-weight: 600;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
-        .upload-btn:active { opacity: 0.7; }
+        .upload-btn:active { 
+            transform: scale(0.95);
+        }
         
         .extra-images-preview {
             display: flex;
             gap: 8px;
             margin-top: 12px;
             flex-wrap: wrap;
+            justify-content: center;
         }
         .extra-img-preview {
             width: 80px;
             height: 80px;
-            border-radius: 6px;
+            border-radius: 8px;
             object-fit: cover;
             border: 2px solid #ddd;
             position: relative;
@@ -209,20 +261,27 @@
             min-height: 250px;
             padding: 14px;
             font-size: 15px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
             line-height: 1.6;
             font-family: inherit;
             resize: vertical;
+            transition: all 0.3s;
+        }
+        .description-editor:focus {
+            border-color: #2a5298;
+            box-shadow: 0 0 0 3px rgba(42,82,152,0.1);
+            outline: none;
         }
         .edit-mode-info {
             background: #fff3cd;
             color: #856404;
             padding: 10px;
-            border-radius: 6px;
+            border-radius: 8px;
             margin-top: 8px;
             font-size: 14px;
             text-align: center;
+            border: 1px solid #ffeaa7;
         }
         
         /* Lightbox */
@@ -284,12 +343,12 @@
         }
         
         .selection-mode-btn {
-            background: #34c759 !important;
+            background: linear-gradient(135deg, #34c759 0%, #28a745 100%) !important;
             margin-top: 12px;
         }
         .selection-count {
             display: inline-block;
-            background: #007aff;
+            background: #2a5298;
             color: white;
             border-radius: 12px;
             padding: 2px 10px;
@@ -298,13 +357,14 @@
         }
         
         .success-message {
-            background: #34c759;
+            background: linear-gradient(135deg, #34c759 0%, #28a745 100%);
             color: white;
             padding: 12px;
-            border-radius: 6px;
+            border-radius: 8px;
             text-align: center;
             margin-top: 10px;
             display: none;
+            box-shadow: 0 4px 15px rgba(52,199,89,0.4);
         }
     </style>
 </head>
@@ -456,7 +516,6 @@ async function deleteExtraImage(filename, thumbElement) {
         if (result.success) {
             thumbElement.remove();
             
-            // Jeśli nie ma więcej zdjęć, ukryj sekcję
             const container = document.getElementById('extraImagesContainer');
             if (container.children.length === 0) {
                 document.getElementById('extraImagesSection').style.display = 'none';
@@ -473,14 +532,12 @@ async function saveProduct() {
         const notes = document.getElementById('notesInput').value;
         const description = document.getElementById('descriptionEditor').value;
         
-        // 1. Zapisz opis
         await fetch('/save-description', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ asin: ASIN, description: description })
         });
         
-        // 2. Zapisz SKU, notes i zdjęcia
         const formData = new FormData();
         formData.append('asin', ASIN);
         formData.append('sku', sku);
@@ -501,7 +558,6 @@ async function saveProduct() {
             const msg = document.getElementById('successMessage');
             msg.style.display = 'block';
             
-            // Jeśli były nowe zdjęcia - dodaj je do DOM
             if (result.images_saved > 0 && result.uploaded_images) {
                 const section = document.getElementById('extraImagesSection');
                 const container = document.getElementById('extraImagesContainer');
@@ -520,7 +576,6 @@ async function saveProduct() {
                 });
             }
             
-            // Wyczyść preview
             uploadedFiles = [];
             document.getElementById('imagePreview').innerHTML = '';
             document.getElementById('imageUpload').value = '';
@@ -537,7 +592,6 @@ async function saveProduct() {
     }
 }
 
-// Selection mode
 function toggleSelectionMode() {
     selectionMode = !selectionMode;
     
