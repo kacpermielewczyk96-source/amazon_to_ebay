@@ -425,42 +425,69 @@ async function deleteExtraImage(filename) {
 
 // Save SKU, notes, images and description
 async function saveProduct() {
-    const sku = document.getElementById('skuInput').value;
-    const notes = document.getElementById('notesInput').value;
-    const description = document.getElementById('descriptionEditor').value;
-    
-    // Zapisz opis
-    await fetch('/save-description', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ asin: ASIN, description: description })
-    });
-    
-    // Zapisz SKU, notes i zdjęcia
-    const formData = new FormData();
-    formData.append('asin', ASIN);
-    formData.append('sku', sku);
-    formData.append('notes', notes);
-    
-    for (let file of uploadedFiles) {
-        formData.append('images', file);
-    }
-    
-    const response = await fetch('/save-product', {
-        method: 'POST',
-        body: formData
-    });
-    
-    const result = await response.json();
-    if (result.success) {
-        const msg = document.getElementById('successMessage');
-        msg.style.display = 'block';
-        setTimeout(() => {
-            msg.style.display = 'none';
-            if (uploadedFiles.length > 0) {
-                location.reload();
-            }
-        }, 1500);
+    try {
+        const sku = document.getElementById('skuInput').value;
+        const notes = document.getElementById('notesInput').value;
+        const description = document.getElementById('descriptionEditor').value;
+        
+        // 1. Zapisz opis
+        const descResponse = await fetch('/save-description', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ asin: ASIN, description: description })
+        });
+        
+        if (!descResponse.ok) {
+            throw new Error('Failed to save description');
+        }
+        
+        // 2. Zapisz SKU, notes i zdjęcia
+        const formData = new FormData();
+        formData.append('asin', ASIN);
+        formData.append('sku', sku);
+        formData.append('notes', notes);
+        
+        // Dodaj pliki
+        for (let file of uploadedFiles) {
+            formData.append('images', file);
+        }
+        
+        const productResponse = await fetch('/save-product', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!productResponse.ok) {
+            const errorData = await productResponse.json();
+            throw new Error(errorData.error || 'Failed to save product');
+        }
+        
+        const result = await productResponse.json();
+        
+        if (result.success) {
+            // Pokaż komunikat sukcesu
+            const msg = document.getElementById('successMessage');
+            msg.style.display = 'block';
+            
+            // Wyczyść preview zdjęć
+            uploadedFiles = [];
+            document.getElementById('imagePreview').innerHTML = '';
+            document.getElementById('imageUpload').value = '';
+            
+            // Ukryj komunikat i przeładuj TYLKO jeśli były nowe zdjęcia
+            setTimeout(() => {
+                msg.style.display = 'none';
+                if (result.images_saved > 0) {
+                    location.reload(); // Przeładuj żeby pokazać nowe zdjęcia
+                }
+            }, 1500);
+        } else {
+            throw new Error(result.error || 'Unknown error');
+        }
+        
+    } catch (error) {
+        console.error('Save error:', error);
+        alert('Błąd zapisu: ' + error.message);
     }
 }
 
