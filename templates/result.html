@@ -110,6 +110,27 @@
             color: white;
         }
         
+        /* Delete button na dodatkowych zdjęciach */
+        .img-thumb .delete-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 28px;
+            height: 28px;
+            background: rgba(255,59,48,0.95);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            cursor: pointer;
+            border: 2px solid white;
+        }
+        .img-thumb .delete-btn:active {
+            opacity: 0.7;
+        }
+        
         /* Upload section */
         .upload-section {
             background: #f0f0f0;
@@ -144,6 +165,32 @@
             border-radius: 6px;
             object-fit: cover;
             border: 2px solid #ddd;
+            position: relative;
+        }
+        
+        /* Description editor */
+        .description-section {
+            margin-top: 20px;
+        }
+        .description-editor {
+            width: 100%;
+            min-height: 250px;
+            padding: 14px;
+            font-size: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            line-height: 1.6;
+            font-family: inherit;
+            resize: vertical;
+        }
+        .edit-mode-info {
+            background: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 8px;
+            font-size: 14px;
+            text-align: center;
         }
         
         /* Lightbox */
@@ -204,16 +251,6 @@
             font-size: 14px;
         }
         
-        #plain-desc {
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            padding: 14px;
-            margin-top: 18px;
-            line-height: 1.6;
-            font-size: 15px;
-            white-space: pre-wrap;
-        }
-        
         .selection-mode-btn {
             background: #34c759 !important;
             margin-top: 12px;
@@ -267,8 +304,9 @@
     <div class="section-title">📸 Dodatkowe zdjęcia (wgrane)</div>
     <div class="images-scroll">
     {% for img in extra_images %}
-        <div class="img-thumb" onclick="openExtraImageLightbox('{{ img }}')">
-            <img src="/uploads/{{ img }}">
+        <div class="img-thumb">
+            <img src="/uploads/{{ img }}" onclick="openExtraImageLightbox('{{ img }}')">
+            <div class="delete-btn" onclick="deleteExtraImage('{{ img }}')">✕</div>
         </div>
     {% endfor %}
     </div>
@@ -284,22 +322,24 @@
     </div>
     
     <!-- Save Button -->
-    <button class="btn save-btn" onclick="saveProduct()">💾 Zapisz SKU i zdjęcia</button>
+    <button class="btn save-btn" onclick="saveProduct()">💾 Zapisz wszystko</button>
     <div class="success-message" id="successMessage">✓ Zapisano!</div>
     
     <!-- Selection Mode -->
     <button class="btn selection-mode-btn" onclick="toggleSelectionMode()">
-        ✓ Wybierz zdjęcia <span id="selectionCount" class="selection-count" style="display:none;">0</span>
+        ✓ Wybierz zdjęcia do pobrania <span id="selectionCount" class="selection-count" style="display:none;">0</span>
     </button>
     <button class="btn download-btn" id="downloadBtn" onclick="downloadSelected()" style="display:none;">
         📦 Pobierz zaznaczone (.ZIP)
     </button>
     
-    <!-- Description -->
-    <button class="btn" onclick="copyText(document.getElementById('plain-desc').innerText)">
-        📄 Copy Description
-    </button>
-    <div id="plain-desc">{{ listing_text }}</div>
+    <!-- Description Editor -->
+    <div class="description-section">
+        <div class="section-title">📝 Opis produktu</div>
+        <textarea class="description-editor" id="descriptionEditor">{{ listing_text }}</textarea>
+        <div class="edit-mode-info">💡 Edytuj opis i kliknij "Zapisz wszystko" aby zachować zmiany</div>
+        <button class="btn" onclick="copyDescription()">📄 Copy Description</button>
+    </div>
     
     <form action="/" method="get">
         <button class="btn" style="margin-top:20px;">🔄 New Item</button>
@@ -333,6 +373,11 @@ function copyText(text) {
     navigator.clipboard.writeText(text);
 }
 
+function copyDescription() {
+    const text = document.getElementById('descriptionEditor').value;
+    navigator.clipboard.writeText(text);
+}
+
 // Preview uploaded images
 function previewImages(event) {
     const preview = document.getElementById('imagePreview');
@@ -352,14 +397,39 @@ function previewImages(event) {
     }
 }
 
-// Save SKU and images
+// Delete extra image
+async function deleteExtraImage(filename) {
+    if (!confirm('Usunąć to zdjęcie?')) return;
+    
+    const response = await fetch('/delete-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asin: ASIN, filename: filename })
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+        location.reload();
+    }
+}
+
+// Save SKU, images and description
 async function saveProduct() {
     const sku = document.getElementById('skuInput').value;
+    const description = document.getElementById('descriptionEditor').value;
+    
+    // Zapisz opis
+    await fetch('/save-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asin: ASIN, description: description })
+    });
+    
+    // Zapisz SKU i zdjęcia
     const formData = new FormData();
     formData.append('asin', ASIN);
     formData.append('sku', sku);
     
-    // Dodaj nowe zdjęcia
     for (let file of uploadedFiles) {
         formData.append('images', file);
     }
@@ -375,7 +445,9 @@ async function saveProduct() {
         msg.style.display = 'block';
         setTimeout(() => {
             msg.style.display = 'none';
-            location.reload(); // Przeładuj żeby pokazać nowe zdjęcia
+            if (uploadedFiles.length > 0) {
+                location.reload();
+            }
         }, 1500);
     }
 }
@@ -388,17 +460,18 @@ function toggleSelectionMode() {
         document.querySelector('.selection-mode-btn').textContent = '✕ Anuluj wybór';
         document.getElementById('selectionCount').style.display = 'inline-block';
         
-        document.querySelectorAll('.img-thumb').forEach(thumb => {
+        document.querySelectorAll('#thumbsContainer .img-thumb').forEach(thumb => {
             thumb.onclick = function(e) {
                 e.stopPropagation();
                 toggleSelection(this);
             };
         });
     } else {
-        document.querySelector('.selection-mode-btn').innerHTML = '✓ Wybierz zdjęcia <span id="selectionCount" class="selection-count" style="display:none;">0</span>';
+        document.querySelector('.selection-mode-btn').innerHTML = '✓ Wybierz zdjęcia do pobrania <span id="selectionCount" class="selection-count" style="display:none;">0</span>';
         selectedImages.clear();
-        document.querySelectorAll('.img-thumb').forEach(thumb => {
+        document.querySelectorAll('#thumbsContainer .img-thumb').forEach(thumb => {
             thumb.classList.remove('selected');
+            thumb.querySelector('.checkbox').textContent = '';
             thumb.onclick = function() {
                 openLightbox(parseInt(this.dataset.index));
             };
@@ -487,7 +560,6 @@ async function downloadImage(url) {
 }
 
 function openExtraImageLightbox(filename) {
-    // Można dodać lightbox dla wgranych zdjęć
     window.open('/uploads/' + filename, '_blank');
 }
 </script>
