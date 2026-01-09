@@ -357,7 +357,7 @@ def scrape():
 
 @app.route("/save-product", methods=["POST"])
 def save_product():
-    """Zapisz SKU, notes i dodatkowe zdjęcia - ZWRACA JSON, NIE PRZEKIEROWUJE"""
+    """Zapisz SKU, notes i dodatkowe zdjęcia - ZWRACA JSON z nazwami plików"""
     try:
         asin = request.form.get("asin")
         sku = request.form.get("sku", "").strip()
@@ -376,6 +376,7 @@ def save_product():
         
         # Zapisz nowe zdjęcia
         saved_count = 0
+        uploaded_filenames = []
         if 'images' in request.files:
             files = request.files.getlist('images')
             for file in files:
@@ -391,13 +392,15 @@ def save_product():
                     
                     # Dodaj do bazy
                     add_product_image(asin, filename)
+                    uploaded_filenames.append(filename)
                     saved_count += 1
         
-        # ZWRÓĆ JSON, NIE PRZEKIEROWUJ
+        # ZWRÓĆ JSON z nazwami wgranych plików
         return jsonify({
             'success': True, 
             'message': 'Zapisano!',
-            'images_saved': saved_count
+            'images_saved': saved_count,
+            'uploaded_images': uploaded_filenames
         }), 200
     
     except Exception as e:
