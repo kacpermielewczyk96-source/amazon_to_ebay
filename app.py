@@ -523,6 +523,35 @@ def history_page():
     """Strona z historią wyszukiwań"""
     history = get_history_from_db(limit=50)
     return render_template("history.html", history=history)
+@app.route("/clear-single-cache", methods=["POST"])
+def clear_single_cache():
+    """Wyczyść cache dla pojedynczego produktu"""
+    try:
+        data = request.get_json()
+        asin = data.get('asin')
+        
+        if not asin:
+            return jsonify({'success': False, 'error': 'Missing ASIN'}), 400
+        
+        # Wygeneruj klucz cache dla tego ASIN
+        cache_key = md5(asin.encode()).hexdigest()
+        cache_file = os.path.join(CACHE_DIR, cache_key + ".json")
+        
+        if os.path.exists(cache_file):
+            os.remove(cache_file)
+            return jsonify({
+                'success': True,
+                'message': f'Cache usunięty dla {asin}'
+            }), 200
+        else:
+            return jsonify({
+                'success': True,
+                'message': f'Brak cache dla {asin}'
+            }), 200
+    
+    except Exception as e:
+        print(f"Error clearing single cache: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=8000)
