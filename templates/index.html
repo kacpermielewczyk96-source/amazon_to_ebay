@@ -10,7 +10,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
             padding: 20px;
         }
         .container {
@@ -18,7 +18,7 @@
             backdrop-filter: blur(10px);
             padding: 40px 30px;
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
             max-width: 500px;
             width: 100%;
         }
@@ -26,7 +26,7 @@
             text-align: center;
             margin-bottom: 10px;
             font-size: 28px;
-            color: #1e3c72;
+            color: #0f0c29;
         }
         .subtitle {
             text-align: center;
@@ -48,15 +48,15 @@
             transition: all 0.3s;
         }
         input[type="text"]:focus {
-            border-color: #2a5298;
-            box-shadow: 0 0 0 3px rgba(42,82,152,0.1);
+            border-color: #302b63;
+            box-shadow: 0 0 0 3px rgba(48,43,99,0.1);
         }
         .paste-btn {
             position: absolute;
             right: 10px;
             top: 50%;
             transform: translateY(-50%);
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%);
             color: white;
             border: none;
             padding: 8px 16px;
@@ -80,12 +80,12 @@
             margin-bottom: 12px;
         }
         .btn-primary {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
             color: white;
-            box-shadow: 0 4px 15px rgba(30,60,114,0.4);
+            box-shadow: 0 4px 15px rgba(15,12,41,0.5);
         }
         .btn-primary:hover {
-            box-shadow: 0 6px 20px rgba(30,60,114,0.5);
+            box-shadow: 0 6px 20px rgba(15,12,41,0.6);
         }
         .btn-primary:active {
             transform: scale(0.98);
@@ -104,7 +104,7 @@
             margin-top: 20px;
         }
         .history-link a {
-            color: #2a5298;
+            color: #302b63;
             text-decoration: none;
             font-size: 14px;
             font-weight: 500;
@@ -169,7 +169,7 @@
         </form>
         
         <button type="button" class="btn btn-secondary" onclick="clearCache()">
-            🗑️ Wyczyść Cache
+            🗑️ Wyczyść Cały Cache
         </button>
         
         <div class="history-link">
@@ -194,14 +194,12 @@
             }
         }
 
-        // Auto-focus na input
         window.addEventListener('load', () => {
             document.getElementById('urlInput').focus();
         });
         
-        // Clear cache function
         async function clearCache() {
-            if (!confirm('Czy na pewno wyczyścić cache? Wszystkie zapisane produkty zostaną ponownie pobrane z Amazon.')) {
+            if (!confirm('Czy na pewno wyczyścić CAŁY cache? Wszystkie zapisane produkty zostaną ponownie pobrane z Amazon.')) {
                 return;
             }
             
