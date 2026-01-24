@@ -34,6 +34,33 @@
             margin-bottom: 14px;
         }
         
+        /* Price display */
+        .price-section {
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%);
+            padding: 15px;
+            border-radius: 12px;
+            margin-top: 12px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        .price-label {
+            font-size: 13px;
+            color: rgba(255,255,255,0.8);
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .price-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: white;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .price-unavailable {
+            font-size: 14px;
+            color: rgba(255,255,255,0.6);
+            font-style: italic;
+        }
+        
         /* SKU & Notes Section */
         .sku-section {
             background: #f9f9f9;
@@ -373,6 +400,20 @@
 <div class="container">
     <h2>{{ title80 }}</h2>
     <div class="full-title">{{ full_title }}</div>
+    
+    <!-- Price Section -->
+    {% if price %}
+    <div class="price-section">
+        <div class="price-label">💰 Cena Amazon UK</div>
+        <div class="price-value">{{ price }}</div>
+    </div>
+    {% else %}
+    <div class="price-section">
+        <div class="price-label">💰 Cena Amazon UK</div>
+        <div class="price-unavailable">Brak dostępności / Cena niedostępna</div>
+    </div>
+    {% endif %}
+    
     <button type="button" class="btn" onclick="copyText('{{ title80 }}')">📋 Copy Title</button>
     
     <!-- SKU & Notes Section -->
@@ -461,7 +502,7 @@
 </div>
 
 <script>
-// VERSION 3.0 - NO RELOAD, NO REDIRECTS
+// VERSION 3.1 - WITH PRICE DISPLAY
 const ASIN = '{{ asin }}';
 let selectionMode = false;
 let selectedImages = new Set();
