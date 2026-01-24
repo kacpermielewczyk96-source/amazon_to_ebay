@@ -44,6 +44,7 @@ def init_db():
             sku TEXT,
             notes TEXT,
             custom_description TEXT,
+            price TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -64,7 +65,7 @@ def init_db():
 
 init_db()
 
-def save_to_history_db(asin, title=None, image_url=None, sku=None):
+def save_to_history_db(asin, title=None, image_url=None, sku=None, price=None):
     """Zapisz lub zaktualizuj wpis w historii"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -74,25 +75,25 @@ def save_to_history_db(asin, title=None, image_url=None, sku=None):
         existing = c.fetchone()
         
         if existing:
-            # Aktualizuj istniejący (ale nie nadpisuj SKU jeśli jest None)
+            # Aktualizuj istniejący
             if sku is not None:
                 c.execute('''
                     UPDATE search_history 
-                    SET title = ?, image_url = ?, sku = ?, timestamp = ?
+                    SET title = ?, image_url = ?, sku = ?, price = ?, timestamp = ?
                     WHERE asin = ?
-                ''', (title, image_url, sku, datetime.now(), asin))
+                ''', (title, image_url, sku, price, datetime.now(), asin))
             else:
                 c.execute('''
                     UPDATE search_history 
-                    SET title = ?, image_url = ?, timestamp = ?
+                    SET title = ?, image_url = ?, price = ?, timestamp = ?
                     WHERE asin = ?
-                ''', (title, image_url, datetime.now(), asin))
+                ''', (title, image_url, price, datetime.now(), asin))
         else:
             # Dodaj nowy
             c.execute('''
-                INSERT INTO search_history (asin, title, image_url, sku, timestamp)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (asin, title, image_url, sku, datetime.now()))
+                INSERT INTO search_history (asin, title, image_url, sku, price, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (asin, title, image_url, sku, price, datetime.now()))
         
         # Usuń najstarsze jeśli > MAX_HISTORY
         c.execute('''
@@ -132,7 +133,7 @@ def get_product_details(asin):
     """Pobierz szczegóły produktu z bazy"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT asin, title, image_url, sku, notes, custom_description FROM search_history WHERE asin = ?', (asin,))
+    c.execute('SELECT asin, title, image_url, sku, notes, custom_description, price FROM search_history WHERE asin = ?', (asin,))
     row = c.fetchone()
     conn.close()
     
@@ -143,7 +144,8 @@ def get_product_details(asin):
             'image_url': row[2],
             'sku': row[3] or '',
             'notes': row[4] or '',
-            'custom_description': row[5] or ''
+            'custom_description': row[5] or '',
+            'price': row[6] or ''
         }
     return None
 
@@ -152,7 +154,7 @@ def get_history_from_db(limit=50):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''
-        SELECT asin, title, image_url, sku, timestamp
+        SELECT asin, title, image_url, sku, price, timestamp
         FROM search_history
         ORDER BY timestamp DESC
         LIMIT ?
@@ -166,7 +168,8 @@ def get_history_from_db(limit=50):
             'title': row[1],
             'image': row[2],
             'sku': row[3] or '',
-            'timestamp': row[4]
+            'price': row[4] or '',
+            'timestamp': row[5]
         }
         for row in rows
     ]
@@ -226,12 +229,41 @@ def extract_highres_images(html: str):
 
     return clean[:12]
 
+def extract_price(html: str):
+    """Wyciągnij cenę z HTML Amazon"""
+    soup = BeautifulSoup(html, "html.parser")
+    
+    # Próbuj różne selektory ceny
+    price_selectors = [
+        ("span", {"class": "a-price-whole"}),
+        ("span", {"class": "a-offscreen"}),
+        ("span", {"id": "priceblock_ourprice"}),
+        ("span", {"id": "priceblock_dealprice"}),
+        ("span", {"class": "a-color-price"}),
+    ]
+    
+    for tag, attrs in price_selectors:
+        price_tag = soup.find(tag, attrs)
+        if price_tag:
+            price_text = price_tag.get_text(strip=True)
+            # Wyczyść cenę (usuń whitespace, zachowaj £ i liczby)
+            price_clean = re.sub(r'\s+', '', price_text)
+            if '£' in price_clean or '$' in price_clean or '€' in price_clean:
+                return price_clean
+    
+    # Fallback: szukaj wzorca £XX.XX w całym HTML
+    price_match = re.search(r'£\s*(\d+[.,]\d{2})', html)
+    if price_match:
+        return f"£{price_match.group(1)}"
+    
+    return None
+
 # ----------------- core scraper -----------------
 
 def fetch_amazon(url_or_asin: str):
     url_or_asin = (url_or_asin or "").strip()
     if not url_or_asin:
-        return {"title": "No title found", "images": [], "bullets": [], "meta": {}}
+        return {"title": "No title found", "images": [], "bullets": [], "meta": {}, "price": None}
 
     if "amazon" not in url_or_asin:
         asin = url_or_asin.upper()
@@ -271,6 +303,8 @@ def fetch_amazon(url_or_asin: str):
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
     images = extract_highres_images(html)
+    
+    price = extract_price(html)
 
     bullets = [
         li.get_text(" ", strip=True)
@@ -289,7 +323,8 @@ def fetch_amazon(url_or_asin: str):
         "title": title,
         "images": images,
         "bullets": bullets,
-        "meta": meta
+        "meta": meta,
+        "price": price
     }
 
     cache_save(cache_key, result)
@@ -334,7 +369,8 @@ def scrape():
         asin = re.sub(r".*?/dp/([A-Z0-9]+).*", r"\1", url_input, flags=re.I)
     
     first_image = data["images"][0] if data["images"] else None
-    save_to_history_db(asin, truncate_title_80(data["title"]), first_image)
+    price = data.get("price")
+    save_to_history_db(asin, truncate_title_80(data["title"]), first_image, price=price)
     
     # Pobierz istniejące dane (SKU, notes, dodatkowe zdjęcia, custom opis)
     existing = get_product_details(asin)
@@ -352,7 +388,8 @@ def scrape():
         extra_images=extra_images,
         sku=existing['sku'] if existing else '',
         notes=existing['notes'] if existing else '',
-        listing_text=listing_text
+        listing_text=listing_text,
+        price=price or ''
     )
 
 @app.route("/save-product", methods=["POST"])
@@ -474,27 +511,6 @@ def api_product(asin):
         return jsonify(details)
     return jsonify({'error': 'Not found'}), 404
 
-@app.route("/proxy")
-def proxy():
-    r = requests.get(unquote(request.args.get("u", "")), timeout=25)
-    return Response(r.content, mimetype="image/jpeg")
-
-@app.route("/download-zip", methods=["POST"])
-def download_zip():
-    mem = BytesIO()
-    with zipfile.ZipFile(mem, "w") as z:
-        for i, u in enumerate(request.form.getlist("selected")):
-            z.writestr(
-                f"image_{i+1}.jpg",
-                requests.get(u, timeout=25).content
-            )
-    mem.seek(0)
-    return send_file(
-        mem,
-        mimetype="application/zip",
-        as_attachment=True,
-        download_name="images.zip"
-    )
 @app.route("/clear-cache", methods=["POST"])
 def clear_cache():
     """Wyczyść cache scraped products"""
@@ -518,11 +534,7 @@ def clear_cache():
     except Exception as e:
         print(f"Error clearing cache: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
-@app.route("/history")
-def history_page():
-    """Strona z historią wyszukiwań"""
-    history = get_history_from_db(limit=50)
-    return render_template("history.html", history=history)
+
 @app.route("/clear-single-cache", methods=["POST"])
 def clear_single_cache():
     """Wyczyść cache dla pojedynczego produktu"""
@@ -552,6 +564,72 @@ def clear_single_cache():
     except Exception as e:
         print(f"Error clearing single cache: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route("/delete-from-history", methods=["POST"])
+def delete_from_history():
+    """Usuń produkt z historii"""
+    try:
+        data = request.get_json()
+        asin = data.get('asin')
+        
+        if not asin:
+            return jsonify({'success': False, 'error': 'Missing ASIN'}), 400
+        
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        
+        # Usuń z historii
+        c.execute('DELETE FROM search_history WHERE asin = ?', (asin,))
+        
+        # Usuń dodatkowe zdjęcia z bazy
+        c.execute('SELECT image_path FROM product_images WHERE asin = ?', (asin,))
+        images = c.fetchall()
+        for img in images:
+            filepath = os.path.join(UPLOADS_DIR, img[0])
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        
+        c.execute('DELETE FROM product_images WHERE asin = ?', (asin,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Usunięto {asin} z historii'
+        }), 200
+    
+    except Exception as e:
+        print(f"Error deleting from history: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route("/history")
+def history_page():
+    """Strona z historią wyszukiwań"""
+    history = get_history_from_db(limit=50)
+    return render_template("history.html", history=history)
+
+@app.route("/proxy")
+def proxy():
+    r = requests.get(unquote(request.args.get("u", "")), timeout=25)
+    return Response(r.content, mimetype="image/jpeg")
+
+@app.route("/download-zip", methods=["POST"])
+def download_zip():
+    mem = BytesIO()
+    with zipfile.ZipFile(mem, "w") as z:
+        for i, u in enumerate(request.form.getlist("selected")):
+            z.writestr(
+                f"image_{i+1}.jpg",
+                requests.get(u, timeout=25).content
+            )
+    mem.seek(0)
+    return send_file(
+        mem,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name="images.zip"
+    )
 
 if __name__ == "__main__":
     app.run(debug=True, port=8000)
