@@ -275,7 +275,10 @@ def fetch_amazon(url_or_asin: str):
     cache_key = md5(asin.encode()).hexdigest()
     cached = cache_load(cache_key)
     if cached:
+        print(f"✓ Cache hit for {asin}")
         return cached
+
+    print(f"→ Fetching {asin} from BrightData...")
 
     headers = {
         "Authorization": f"Bearer {BRIGHTDATA_API_KEY}",
@@ -288,14 +291,35 @@ def fetch_amazon(url_or_asin: str):
         "format": "raw"
     }
 
-    r = requests.post(
-        BRIGHTDATA_ENDPOINT,
-        headers=headers,
-        json=payload,
-        timeout=60
-    )
-    r.raise_for_status()
-    html = r.text
+    try:
+        r = requests.post(
+            BRIGHTDATA_ENDPOINT,
+            headers=headers,
+            json=payload,
+            timeout=90  # Zwiększony timeout do 90 sekund
+        )
+        r.raise_for_status()
+        html = r.text
+        print(f"✓ Successfully fetched {asin}")
+        
+    except requests.exceptions.Timeout:
+        print(f"⚠️ TIMEOUT for {asin} - BrightData took too long")
+        return {
+            "title": f"[TIMEOUT] {asin} - Spróbuj ponownie",
+            "images": [],
+            "bullets": ["BrightData API timeout - spróbuj ponownie za chwilę"],
+            "meta": {},
+            "price": None
+        }
+    except requests.exceptions.RequestException as e:
+        print(f"❌ ERROR for {asin}: {str(e)}")
+        return {
+            "title": f"[ERROR] {asin}",
+            "images": [],
+            "bullets": [f"Błąd: {str(e)}"],
+            "meta": {},
+            "price": None
+        }
 
     soup = BeautifulSoup(html, "html.parser")
 
