@@ -394,11 +394,20 @@ def scrape():
     
     first_image = data["images"][0] if data["images"] else None
     price = data.get("price")
-    save_to_history_db(asin, truncate_title_80(data["title"]), first_image, price=price)
     
-    # Pobierz istniejące dane (SKU, notes, dodatkowe zdjęcia, custom opis)
+    # Pobierz istniejące dane (SKU, notes, dodatkowe zdjęcia, custom opis, CUSTOM TYTUŁ)
     existing = get_product_details(asin)
     extra_images = get_product_images(asin)
+    
+    # UŻYJ CUSTOM TYTUŁ jeśli istnieje, inaczej tytuł z Amazon
+    if existing and existing['title']:
+        title_80 = existing['title'][:80]  # Custom tytuł z bazy
+        full_title = data["title"]  # Oryginalny tytuł z Amazon
+    else:
+        title_80 = truncate_title_80(data["title"])
+        full_title = data["title"]
+        # Zapisz do bazy pierwszy raz
+        save_to_history_db(asin, title_80, first_image, price=price)
     
     # Użyj custom description jeśli istnieje, inaczej wygeneruj nowy
     listing_text = existing['custom_description'] if existing and existing['custom_description'] else generate_listing_text(data["title"], data["meta"], data["bullets"])
@@ -406,8 +415,8 @@ def scrape():
     return render_template(
         "result.html",
         asin=asin,
-        title80=truncate_title_80(data["title"]),
-        full_title=data["title"],
+        title80=title_80,  # Tytuł z bazy (może być edytowany)
+        full_title=full_title,  # Oryginalny tytuł z Amazon
         images=data["images"],
         extra_images=extra_images,
         sku=existing['sku'] if existing else '',
