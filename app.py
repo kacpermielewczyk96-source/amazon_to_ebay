@@ -655,5 +655,30 @@ def download_zip():
         download_name="images.zip"
     )
 
+@app.route("/save-title", methods=["POST"])
+def save_title():
+    """Zapisz edytowany tytuł"""
+    try:
+        data = request.get_json()
+        asin = data.get('asin')
+        title = data.get('title', '').strip()
+        
+        if not asin:
+            return jsonify({'success': False, 'error': 'Missing ASIN'}), 400
+        
+        # Ogranicz do 80 znaków
+        title = title[:80]
+        
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('UPDATE search_history SET title = ? WHERE asin = ?', (title, asin))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True}), 200
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 if __name__ == "__main__":
     app.run(debug=True, port=8000)
