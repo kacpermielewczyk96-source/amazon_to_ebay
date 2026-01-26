@@ -149,7 +149,7 @@
 <body>
     <div class="container">
         <h1>🔍 Amazon → eBay</h1>
-        <p class="subtitle">Konwerter produktów z Amazon UK na eBay</p>
+        <p class="subtitle">Convert Amazon UK products to eBay listings</p>
         
         <form action="/scrape" method="post">
             <div class="input-group">
@@ -157,27 +157,27 @@
                     type="text" 
                     name="url" 
                     id="urlInput"
-                    placeholder="Wklej URL lub ASIN..."
+                    placeholder="Paste URL or ASIN..."
                     required
                 >
-                <button type="button" class="paste-btn" onclick="pasteFromClipboard()">📋 Wklej</button>
+                <button type="button" class="paste-btn" onclick="pasteFromClipboard()">📋 Paste</button>
             </div>
             
             <button type="submit" class="btn btn-primary">
-                🚀 Konwertuj
+                🚀 Convert
             </button>
         </form>
         
         <button type="button" class="btn btn-secondary" onclick="clearCache()">
-            🗑️ Wyczyść Cały Cache
+            🗑️ Clear All Cache
         </button>
         
         <div class="history-link">
-            <a href="/history">📚 Historia wyszukiwań</a>
+            <a href="/history">📚 Search History</a>
         </div>
         
         <div class="example">
-            Przykład: B0ABCD1234 lub pełny URL
+            Example: B0ABCD1234 or full URL
         </div>
     </div>
     
@@ -190,7 +190,7 @@
                 document.getElementById('urlInput').value = text.trim();
                 document.getElementById('urlInput').focus();
             } catch (err) {
-                alert('Nie udało się wkleić. Użyj Ctrl+V lub długie przytrzymanie.');
+                alert('Cannot paste. Use Ctrl+V or long press.');
             }
         }
 
@@ -199,7 +199,7 @@
         });
         
         async function clearCache() {
-            if (!confirm('Czy na pewno wyczyścić CAŁY cache? Wszystkie zapisane produkty zostaną ponownie pobrane z Amazon.')) {
+            if (!confirm('Clear ALL cache? All saved products will be re-fetched from Amazon.')) {
                 return;
             }
             
@@ -211,12 +211,12 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showToast('✓ Cache wyczyszczony! (' + result.deleted + ' produktów)');
+                    showToast('✓ Cache cleared! (' + result.deleted + ' products)');
                 } else {
-                    throw new Error(result.error || 'Błąd czyszczenia cache');
+                    throw new Error(result.error || 'Cache clear error');
                 }
             } catch (error) {
-                alert('Błąd: ' + error.message);
+                alert('Error: ' + error.message);
             }
         }
         
