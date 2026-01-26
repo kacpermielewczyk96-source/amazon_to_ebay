@@ -187,12 +187,12 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📚 Historia wyszukiwań</h1>
-            <a href="/" class="back-btn">← Powrót</a>
+            <h1>📚 Search History</h1>
+            <a href="/" class="back-btn">← Back</a>
         </div>
         
         {% if history %}
-            <div class="swipe-hint">👈 Przesuń w lewo aby usunąć z historii</div>
+            <div class="swipe-hint">👈 Swipe left to remove from history</div>
             {% for item in history %}
             <div class="swipe-container" data-asin="{{ item.asin }}">
                 <div class="delete-bg">🗑️</div>
@@ -219,14 +219,14 @@
                             </div>
                         </button>
                     </form>
-                    <button type="button" class="delete-cache-btn" onclick="deleteSingleCache('{{ item.asin }}', event)" title="Wyczyść cache">🔄</button>
+                    <button type="button" class="delete-cache-btn" onclick="deleteSingleCache('{{ item.asin }}', event)" title="Clear cache">🔄</button>
                 </div>
             </div>
             {% endfor %}
         {% else %}
             <div class="empty">
-                <h2>🔍 Brak historii</h2>
-                <p>Zacznij od wyszukania produktu!</p>
+                <h2>🔍 No History</h2>
+                <p>Start by searching for a product!</p>
             </div>
         {% endif %}
     </div>
@@ -240,10 +240,9 @@
             let currentX = 0;
             let isDragging = false;
             let hasTriggeredDelete = false;
-            const deleteThreshold = -100; // pixels
+            const deleteThreshold = -100;
             
             card.addEventListener('touchstart', (e) => {
-                // Ignore if clicking on buttons
                 if (e.target.closest('button.delete-cache-btn')) return;
                 
                 startX = e.touches[0].clientX;
@@ -257,7 +256,6 @@
                 
                 currentX = e.touches[0].clientX - startX;
                 
-                // Only allow left swipe
                 if (currentX < 0) {
                     card.style.transform = `translateX(${currentX}px)`;
                 }
@@ -273,20 +271,17 @@
                     hasTriggeredDelete = true;
                     const asin = card.dataset.asin;
                     
-                    // Animate full swipe
                     card.style.transform = 'translateX(-100%)';
                     
                     setTimeout(async () => {
                         await deleteFromHistory(asin);
                         card.closest('.swipe-container').remove();
                         
-                        // Check if empty
                         if (document.querySelectorAll('.swipe-container').length === 0) {
                             location.reload();
                         }
                     }, 300);
                 } else {
-                    // Snap back
                     card.style.transform = 'translateX(0)';
                 }
             });
@@ -303,12 +298,12 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showToast('✓ Usunięto z historii');
+                    showToast('✓ Removed from history');
                 } else {
-                    throw new Error(result.error || 'Błąd usuwania');
+                    throw new Error(result.error || 'Delete error');
                 }
             } catch (error) {
-                showToast('❌ Błąd: ' + error.message);
+                showToast('❌ Error: ' + error.message);
             }
         }
         
@@ -316,7 +311,7 @@
             event.stopPropagation();
             event.preventDefault();
             
-            if (!confirm('Wyczyścić cache dla tego produktu?\n\nNastępne wyszukanie pobierze świeże dane z Amazon.')) {
+            if (!confirm('Clear cache for this product?\n\nNext search will fetch fresh data from Amazon.')) {
                 return;
             }
             
@@ -330,12 +325,12 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showToast('✓ Cache wyczyszczony dla ' + asin);
+                    showToast('✓ Cache cleared for ' + asin);
                 } else {
-                    throw new Error(result.error || 'Błąd czyszczenia cache');
+                    throw new Error(result.error || 'Cache clear error');
                 }
             } catch (error) {
-                alert('Błąd: ' + error.message);
+                alert('Error: ' + error.message);
             }
         }
         
