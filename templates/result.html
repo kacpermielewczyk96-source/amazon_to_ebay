@@ -22,16 +22,89 @@
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.5);
         }
-        h2 { 
-            margin-bottom: 6px; 
-            font-size: 22px; 
-            font-weight: 700;
-            color: #0f0c29;
+        
+        /* Title Editor Section */
+        .title-editor-section {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            border: 1px solid #e0e0e0;
         }
-        .full-title {
+        .title-editor-label {
             font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #0f0c29;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .char-counter {
+            font-size: 13px;
+            font-weight: 500;
+            padding: 4px 10px;
+            border-radius: 6px;
+            background: #e0e0e0;
             color: #666;
+        }
+        .char-counter.ok {
+            background: #d4edda;
+            color: #155724;
+        }
+        .char-counter.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .char-counter.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .title-editor {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            outline: none;
+            font-family: inherit;
+            transition: all 0.3s;
+            resize: vertical;
+            min-height: 60px;
+        }
+        .title-editor:focus {
+            border-color: #302b63;
+            box-shadow: 0 0 0 3px rgba(48,43,99,0.1);
+        }
+        .title-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .title-actions button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .copy-title-btn {
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(15,12,41,0.4);
+        }
+        .copy-title-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .full-title {
+            font-size: 12px;
+            color: #999;
             margin-bottom: 14px;
+            font-style: italic;
         }
         
         /* Price display */
@@ -398,38 +471,47 @@
 </head>
 <body>
 <div class="container">
-    <h2>{{ title80 }}</h2>
-    <div class="full-title">{{ full_title }}</div>
+    <!-- Title Editor -->
+    <div class="title-editor-section">
+        <div class="title-editor-label">
+            <span>📝 eBay Title (Max 80 chars)</span>
+            <span class="char-counter" id="charCounter">0 / 80</span>
+        </div>
+        <textarea class="title-editor" id="titleEditor" maxlength="80" oninput="updateCharCounter()">{{ title80 }}</textarea>
+        <div class="title-actions">
+            <button type="button" class="copy-title-btn" onclick="copyTitle()">📋 Copy Title</button>
+        </div>
+    </div>
+    
+    <div class="full-title">Original: {{ full_title }}</div>
     
     <!-- Price Section -->
     {% if price %}
     <div class="price-section">
-        <div class="price-label">💰 Cena Amazon UK</div>
+        <div class="price-label">💰 Amazon UK Price</div>
         <div class="price-value">{{ price }}</div>
     </div>
     {% else %}
     <div class="price-section">
-        <div class="price-label">💰 Cena Amazon UK</div>
-        <div class="price-unavailable">Brak dostępności / Cena niedostępna</div>
+        <div class="price-label">💰 Amazon UK Price</div>
+        <div class="price-unavailable">Not Available / Out of Stock</div>
     </div>
     {% endif %}
     
-    <button type="button" class="btn" onclick="copyText('{{ title80 }}')">📋 Copy Title</button>
-    
     <!-- SKU & Notes Section -->
     <div class="sku-section">
-        <label for="skuInput">📦 SKU (Numer produktu)</label>
+        <label for="skuInput">📦 SKU (Product Number)</label>
         <div class="sku-with-copy">
-            <input type="text" id="skuInput" placeholder="Wpisz SKU..." value="{{ sku }}">
+            <input type="text" id="skuInput" placeholder="Enter SKU..." value="{{ sku }}">
             <button type="button" class="copy-sku-btn" onclick="copySKU()">📋 Copy</button>
         </div>
         
-        <label for="notesInput" style="margin-top: 15px;">📝 Notatka</label>
-        <textarea id="notesInput" placeholder="Stan produktu, waga paczki, uwagi...">{{ notes }}</textarea>
+        <label for="notesInput" style="margin-top: 15px;">📝 Notes</label>
+        <textarea id="notesInput" placeholder="Condition, weight, remarks...">{{ notes }}</textarea>
     </div>
     
     <!-- Amazon Images -->
-    <div class="section-title">🖼️ Zdjęcia z Amazon</div>
+    <div class="section-title">🖼️ Amazon Images</div>
     <div class="images-scroll" id="thumbsContainer">
     {% for img in images %}
         <div class="img-thumb" data-index="{{ loop.index0 }}" data-url="{{ img }}" onclick="openLightbox({{ loop.index0 }})">
@@ -441,7 +523,7 @@
     
     <!-- Extra Images (uploaded) -->
     <div id="extraImagesSection" {% if not extra_images %}style="display:none;"{% endif %}>
-        <div class="section-title">📸 Dodatkowe zdjęcia (wgrane)</div>
+        <div class="section-title">📸 Additional Photos (Uploaded)</div>
         <div class="images-scroll" id="extraImagesContainer">
         {% for img in extra_images %}
             <div class="img-thumb" data-filename="{{ img }}">
@@ -455,29 +537,29 @@
     <!-- Upload Section -->
     <div class="upload-section">
         <label for="imageUpload" class="upload-btn">
-            📷 Dodaj zdjęcia z telefonu
+            📷 Upload Photos from Phone
         </label>
         <input type="file" id="imageUpload" accept="image/*" multiple onchange="previewImages(event)">
         <div class="extra-images-preview" id="imagePreview"></div>
     </div>
     
     <!-- Save Button -->
-    <button type="button" class="btn save-btn" onclick="saveProduct()">💾 Zapisz wszystko</button>
-    <div class="success-message" id="successMessage">✓ Zapisano!</div>
+    <button type="button" class="btn save-btn" onclick="saveProduct()">💾 Save All</button>
+    <div class="success-message" id="successMessage">✓ Saved!</div>
     
     <!-- Selection Mode -->
     <button type="button" class="btn selection-mode-btn" onclick="toggleSelectionMode()">
-        ✓ Wybierz zdjęcia do pobrania <span id="selectionCount" class="selection-count" style="display:none;">0</span>
+        ✓ Select Images for Download <span id="selectionCount" class="selection-count" style="display:none;">0</span>
     </button>
     <button type="button" class="btn download-btn" id="downloadBtn" onclick="downloadSelected()" style="display:none;">
-        📦 Pobierz zaznaczone (.ZIP)
+        📦 Download Selected (.ZIP)
     </button>
     
     <!-- Description Editor -->
     <div class="description-section">
-        <div class="section-title">📝 Opis produktu</div>
+        <div class="section-title">📝 Product Description</div>
         <textarea class="description-editor" id="descriptionEditor">{{ listing_text }}</textarea>
-        <div class="edit-mode-info">💡 Edytuj opis i kliknij "Zapisz wszystko" aby zachować zmiany</div>
+        <div class="edit-mode-info">💡 Edit description and click "Save All" to save changes</div>
         <button type="button" class="btn" onclick="copyDescription()">📄 Copy Description</button>
     </div>
     
@@ -498,18 +580,41 @@
         </div>
     {% endfor %}
     </div>
-    <div class="lightbox-footer">Przytrzymaj zdjęcie aby pobrać</div>
+    <div class="lightbox-footer">Press and hold image to download</div>
 </div>
 
 <script>
-// VERSION 3.1 - WITH PRICE DISPLAY
+// VERSION 4.0 - EDITABLE TITLE + CHAR COUNTER + ENGLISH
 const ASIN = '{{ asin }}';
 let selectionMode = false;
 let selectedImages = new Set();
 let uploadedFiles = [];
 
-function copyText(text) {
-    navigator.clipboard.writeText(text);
+// Character counter for title
+function updateCharCounter() {
+    const title = document.getElementById('titleEditor').value;
+    const counter = document.getElementById('charCounter');
+    const length = title.length;
+    
+    counter.textContent = `${length} / 80`;
+    
+    // Update color based on length
+    counter.classList.remove('ok', 'warning', 'error');
+    if (length <= 60) {
+        counter.classList.add('ok');
+    } else if (length <= 75) {
+        counter.classList.add('warning');
+    } else {
+        counter.classList.add('error');
+    }
+}
+
+// Initialize counter on load
+window.addEventListener('load', updateCharCounter);
+
+function copyTitle() {
+    const title = document.getElementById('titleEditor').value;
+    navigator.clipboard.writeText(title);
 }
 
 function copySKU() {
@@ -517,7 +622,7 @@ function copySKU() {
     if (sku) {
         navigator.clipboard.writeText(sku);
     } else {
-        alert('SKU jest puste!');
+        alert('SKU is empty!');
     }
 }
 
@@ -545,7 +650,7 @@ function previewImages(event) {
 }
 
 async function deleteExtraImage(filename, thumbElement) {
-    if (!confirm('Usunąć to zdjęcie?')) return;
+    if (!confirm('Delete this image?')) return;
     
     try {
         const response = await fetch('/delete-image', {
@@ -564,16 +669,25 @@ async function deleteExtraImage(filename, thumbElement) {
             }
         }
     } catch (error) {
-        alert('Błąd usuwania: ' + error.message);
+        alert('Delete error: ' + error.message);
     }
 }
 
 async function saveProduct() {
     try {
+        const title = document.getElementById('titleEditor').value;
         const sku = document.getElementById('skuInput').value;
         const notes = document.getElementById('notesInput').value;
         const description = document.getElementById('descriptionEditor').value;
         
+        // Save title
+        await fetch('/save-title', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ asin: ASIN, title: title })
+        });
+        
+        // Save description
         await fetch('/save-description', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -630,7 +744,7 @@ async function saveProduct() {
         }
         
     } catch (error) {
-        alert('Błąd zapisu: ' + error.message);
+        alert('Save error: ' + error.message);
     }
 }
 
@@ -638,7 +752,7 @@ function toggleSelectionMode() {
     selectionMode = !selectionMode;
     
     if (selectionMode) {
-        document.querySelector('.selection-mode-btn').textContent = '✕ Anuluj wybór';
+        document.querySelector('.selection-mode-btn').textContent = '✕ Cancel Selection';
         document.getElementById('selectionCount').style.display = 'inline-block';
         
         document.querySelectorAll('#thumbsContainer .img-thumb').forEach(thumb => {
@@ -648,7 +762,7 @@ function toggleSelectionMode() {
             };
         });
     } else {
-        document.querySelector('.selection-mode-btn').innerHTML = '✓ Wybierz zdjęcia do pobrania <span id="selectionCount" class="selection-count" style="display:none;">0</span>';
+        document.querySelector('.selection-mode-btn').innerHTML = '✓ Select Images for Download <span id="selectionCount" class="selection-count" style="display:none;">0</span>';
         selectedImages.clear();
         document.querySelectorAll('#thumbsContainer .img-thumb').forEach(thumb => {
             thumb.classList.remove('selected');
