@@ -296,7 +296,7 @@ def fetch_amazon(url_or_asin: str):
             BRIGHTDATA_ENDPOINT,
             headers=headers,
             json=payload,
-            timeout=90  # Zwiększony timeout do 90 sekund
+            timeout=150
         )
         r.raise_for_status()
         html = r.text
