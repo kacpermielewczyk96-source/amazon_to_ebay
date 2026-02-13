@@ -563,16 +563,21 @@ def ebay_connect():
         flash("eBay credentials not configured", "error")
         return redirect(url_for('dashboard'))
     
+    # eBay OAuth wymaga "state" parameter dla bezpieczeństwa
+    import secrets
+    state = secrets.token_urlsafe(32)
+    session['ebay_oauth_state'] = state
+    
     params = {
         'client_id': EBAY_APP_ID,
         'redirect_uri': EBAY_REDIRECT_URI,
         'response_type': 'code',
         'scope': ' '.join(EBAY_SCOPES),
+        'state': state
     }
     
     auth_url = f"{EBAY_AUTH_URL}?{urlencode(params)}"
     return redirect(auth_url)
-
 @app.route("/ebay/callback")
 @login_required
 def ebay_callback():
