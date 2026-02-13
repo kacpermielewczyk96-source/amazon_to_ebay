@@ -18,7 +18,7 @@ import base64
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
-# ================== LOGIN SETUP ==================
+# ================= LOGIN =================
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -49,7 +49,7 @@ def load_user(user_id):
         return User(id=user[0], email=user[1])
     return None
 
-# ================== DATABASE ==================
+# ================= DATABASE =================
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -92,12 +92,12 @@ def init_db():
         )
     ''')
 
-    # EBAY ACCOUNTS
+    # ===== EBAY ACCOUNTS =====
     c.execute('''
         CREATE TABLE IF NOT EXISTS ebay_accounts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
-            ebay_user_id TEXT,
+            ebay_username TEXT,
             access_token TEXT,
             refresh_token TEXT,
             token_expiry DATETIME,
@@ -111,85 +111,11 @@ def init_db():
 
 init_db()
 
-# ================== AUTH ROUTES ==================
+# ================= EBAY OAUTH (PRODUCTION) =================
 
-@app.route("/")
-def index():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
-
-@app.route("/dashboard")
-@login_required
-def dashboard():
-    return render_template("index.html")
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-
-    if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute('SELECT id, email, password_hash FROM users WHERE email = ?', (email,))
-        user = c.fetchone()
-        conn.close()
-
-        if user and check_password_hash(user[2], password):
-            login_user(User(user[0], user[1]))
-            return redirect(url_for('dashboard'))
-        else:
-            flash("Invalid email or password")
-
-    return render_template("login.html")
-
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-
-    if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-        confirm = request.form.get("confirm", "")
-
-        if password != confirm:
-            flash("Passwords do not match")
-            return render_template("register.html")
-
-        if len(password) < 8:
-            flash("Password must be at least 8 characters")
-            return render_template("register.html")
-
-        password_hash = generate_password_hash(password)
-
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute('INSERT INTO users (email, password_hash) VALUES (?, ?)', (email, password_hash))
-            conn.commit()
-            user_id = c.lastrowid
-            conn.close()
-
-            login_user(User(user_id, email))
-            return redirect(url_for('dashboard'))
-
-        except sqlite3.IntegrityError:
-            flash("Email already registered")
-
-    return render_template("register.html")
-
-@app.route("/logout")
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
-
-# ================== EBAY OAUTH ==================
+EBAY_AUTH_URL = "https://auth.ebay.com/oauth2/authorize"
+EBAY_TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
+EBAY_API_BASE = "https://api.ebay.com"
 
 @app.route("/connect-ebay")
 @login_required
@@ -205,7 +131,7 @@ def connect_ebay():
     )
 
     auth_url = (
-        "https://auth.ebay.com/oauth2/authorize?"
+        f"{EBAY_AUTH_URL}?"
         f"client_id={client_id}"
         "&response_type=code"
         f"&redirect_uri={redirect_uri}"
@@ -240,7 +166,7 @@ def ebay_callback():
     }
 
     token_response = requests.post(
-        "https://api.ebay.com/identity/v1/oauth2/token",
+        EBAY_TOKEN_URL,
         headers=headers,
         data=data
     )
@@ -256,23 +182,60 @@ def ebay_callback():
 
     expiry_time = datetime.utcnow() + timedelta(seconds=expires_in)
 
+    # Get eBay username
+    user_headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    user_resp = requests.get(
+        f"{EBAY_API_BASE}/sell/account/v1/privilege",
+        headers=user_headers
+    )
+
+    ebay_username = "Unknown"
+    if user_resp.status_code == 200:
+        ebay_username = user_resp.headers.get("X-EBAY-C-MARKETPLACE-ID", "Connected")
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+
     c.execute('''
-        INSERT INTO ebay_accounts (user_id, access_token, refresh_token, token_expiry)
-        VALUES (?, ?, ?, ?)
-    ''', (current_user.id, access_token, refresh_token, expiry_time))
+        INSERT INTO ebay_accounts (user_id, ebay_username, access_token, refresh_token, token_expiry)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (
+        current_user.id,
+        ebay_username,
+        access_token,
+        refresh_token,
+        expiry_time
+    ))
+
     conn.commit()
     conn.close()
 
     flash("eBay account connected successfully!", "success")
     return redirect(url_for("dashboard"))
 
-# ================== HEALTH ==================
+@app.route("/api/ebay-accounts")
+@login_required
+def get_ebay_accounts():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT id, ebay_username, created_at FROM ebay_accounts WHERE user_id = ?", (current_user.id,))
+    rows = c.fetchall()
+    conn.close()
+
+    return jsonify([
+        {"id": r[0], "username": r[1], "connected_at": r[2]}
+        for r in rows
+    ])
+
+# ================= HEALTH =================
 
 @app.route("/health")
 def health():
     return "ok", 200
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=8000)
