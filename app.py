@@ -583,10 +583,19 @@ def ebay_connect():
 def ebay_callback():
     """Step 2: Exchange code for token"""
     code = request.args.get('code')
+    state = request.args.get('state')
+    
+    # Verify state parameter
+    if state != session.get('ebay_oauth_state'):
+        flash("eBay authorization failed - invalid state", "error")
+        return redirect(url_for('dashboard'))
     
     if not code:
         flash("eBay authorization failed - no code received", "error")
         return redirect(url_for('dashboard'))
+    
+    # Clear state from session
+    session.pop('ebay_oauth_state', None)
     
     # Exchange code for tokens
     auth_string = f"{EBAY_APP_ID}:{EBAY_CERT_ID}"
