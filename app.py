@@ -28,7 +28,7 @@ login_manager.login_message = 'Please log in to access this page.'
 EBAY_APP_ID = os.environ.get('EBAY_APP_ID', '')
 EBAY_CERT_ID = os.environ.get('EBAY_CERT_ID', '')
 EBAY_REDIRECT_URI = os.environ.get('EBAY_REDIRECT_URI', 'https://amazon-to-ebay-1.onrender.com/ebay/callback')
-EBAY_RUNAME = 'Everyday_Deals_-Everyday-Everyd-klnyp'
+EBAY_RUNAME = 'Everyday_Deals_-Everyday-Everyd-qnxbthvql'
 
 EBAY_AUTH_URL = "https://auth.ebay.com/oauth2/authorize"
 EBAY_TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
