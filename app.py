@@ -51,7 +51,7 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 # Database
-DB_PATH = "history.db"
+DB_PATH = "/opt/render/project/data/history.db"
 MAX_HISTORY = 50
 
 # User Model
