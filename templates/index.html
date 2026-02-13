@@ -1,241 +1,340 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon → eBay Converter</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
             padding: 20px;
         }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            margin-bottom: 20px;
+            color: white;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 8px;
+            transition: 0.3s;
+        }
+        
+        .nav-links a:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .logout-btn {
+            color: #ff6b6b !important;
+            font-weight: 600;
+        }
+        
         .container {
+            max-width: 600px;
+            margin: 0 auto;
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             padding: 40px 30px;
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-            max-width: 500px;
-            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
         }
-
-        .user-bar {
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            margin-bottom:25px;
-            padding-bottom:15px;
-            border-bottom:1px solid #eee;
-        }
-
-        .user-info {
-            font-size:14px;
-            color:#444;
-        }
-
-        .user-actions a {
-            font-size:14px;
-            text-decoration:none;
-            margin-left:15px;
-            font-weight:500;
-        }
-
-        .history-link {
-            color:#302b63;
-        }
-
-        .logout-link {
-            color:#c92a2a;
-        }
-
+        
         h1 {
             text-align: center;
             margin-bottom: 10px;
-            font-size: 28px;
             color: #0f0c29;
+            font-size: 32px;
         }
+        
         .subtitle {
             text-align: center;
             color: #666;
-            font-size: 14px;
             margin-bottom: 30px;
+            font-size: 14px;
         }
+        
         .input-group {
             position: relative;
             margin-bottom: 20px;
         }
+        
         input[type="text"] {
             width: 100%;
-            padding: 15px;
-            font-size: 16px;
+            padding: 14px 120px 14px 14px;
             border: 2px solid #e0e0e0;
             border-radius: 10px;
+            font-size: 16px;
             outline: none;
-            transition: all 0.3s;
+            transition: 0.3s;
         }
+        
         input[type="text"]:focus {
             border-color: #302b63;
-            box-shadow: 0 0 0 3px rgba(48,43,99,0.1);
+            box-shadow: 0 0 0 3px rgba(48, 43, 99, 0.1);
         }
+        
         .paste-btn {
             position: absolute;
             right: 10px;
             top: 50%;
             transform: translateY(-50%);
-            background: linear-gradient(135deg, #0f0c29 0%, #302b63 100%);
+            padding: 8px 16px;
+            background: #302b63;
             color: white;
             border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 14px;
-        }
-        .btn {
-            width: 100%;
-            padding: 15px;
-            font-size: 16px;
             font-weight: 600;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-            margin-bottom: 12px;
         }
-        .btn-primary {
+        
+        .convert-btn {
+            width: 100%;
+            padding: 14px;
             background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
             color: white;
-            box-shadow: 0 4px 15px rgba(15,12,41,0.5);
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(15, 12, 41, 0.5);
+            margin-bottom: 15px;
         }
-        .btn-secondary {
-            background: #f5f5f5;
-            color: #666;
-            font-size: 14px;
+        
+        .clear-cache-btn {
+            width: 100%;
             padding: 12px;
+            background: transparent;
+            color: #666;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-bottom: 30px;
         }
-
+        
         .ebay-section {
-            margin-top:25px;
-            padding-top:20px;
-            border-top:1px solid #eee;
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #e0e0e0;
         }
-
-        .ebay-btn {
-            background: linear-gradient(135deg, #e53238 0%, #b31217 100%);
-            color:white;
+        
+        .ebay-section h2 {
+            font-size: 20px;
+            margin-bottom: 15px;
+            color: #0f0c29;
         }
-
+        
+        .ebay-accounts {
+            margin-bottom: 15px;
+        }
+        
+        .ebay-account {
+            background: #f5f5f5;
+            padding: 12px 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .ebay-account-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .connect-ebay-btn {
+            width: 100%;
+            padding: 14px;
+            background: #e53238;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(229, 50, 56, 0.3);
+        }
+        
         .example {
             text-align: center;
             color: #999;
-            font-size: 12px;
+            font-size: 13px;
             margin-top: 15px;
         }
-
+        
         .toast {
             position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #34c759;
+            top: 20px;
+            right: 20px;
+            background: #323232;
             color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 14px;
-            display: none;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s;
             z-index: 1000;
         }
+        
         .toast.show {
-            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        @media (max-width: 600px) {
+            .header {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .container {
+                padding: 30px 20px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-
-        <!-- USER BAR -->
-        <div class="user-bar">
-            <div class="user-info">
-                👤 Logged as: <strong>{{ current_user.email }}</strong>
-            </div>
-            <div class="user-actions">
-                <a href="/history" class="history-link">📚 History</a>
-                <a href="/logout" class="logout-link">🚪 Logout</a>
-            </div>
+    <div class="header">
+        <div class="user-info">
+            <span>👤 Logged as:</span>
+            <strong>{{ current_user.email }}</strong>
         </div>
+        <div class="nav-links">
+            <a href="/history">📚 History</a>
+            <a href="/logout" class="logout-btn">🚪 Logout</a>
+        </div>
+    </div>
 
+    <div class="container">
         <h1>🔍 Amazon → eBay</h1>
         <p class="subtitle">Convert Amazon UK products to eBay listings</p>
         
-        <form action="/scrape" method="post">
+        <form action="/scrape" method="POST">
             <div class="input-group">
-                <input 
-                    type="text" 
-                    name="url" 
-                    id="urlInput"
-                    placeholder="Paste URL or ASIN..."
-                    required
-                >
+                <input type="text" name="url" id="urlInput" placeholder="Paste URL or ASIN..." required>
                 <button type="button" class="paste-btn" onclick="pasteFromClipboard()">📋 Paste</button>
             </div>
-            
-            <button type="submit" class="btn btn-primary">
-                🚀 Convert
-            </button>
+            <button type="submit" class="convert-btn">🚀 Convert</button>
         </form>
         
-        <button type="button" class="btn btn-secondary" onclick="clearCache()">
-            🗑️ Clear All Cache
-        </button>
-
-        <!-- EBAY CONNECT SECTION (NEXT STEP WILL ACTIVATE THIS) -->
+        <button class="clear-cache-btn" onclick="clearCache()">🗑️ Clear All Cache</button>
+        
         <div class="ebay-section">
-            <button type="button" class="btn ebay-btn" onclick="window.location.href='/connect-ebay'">
-                🔗 Connect eBay Account
-            </button>
+            <h2>🔗 eBay Accounts</h2>
+            
+            {% if ebay_accounts %}
+            <div class="ebay-accounts">
+                {% for account in ebay_accounts %}
+                <div class="ebay-account">
+                    <div class="ebay-account-info">
+                        <span>📧</span>
+                        <span>{{ account.email or account.ebay_user_id or 'eBay Account' }}</span>
+                    </div>
+                    <span class="status-badge status-active">✓ Connected</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <a href="/ebay/connect" style="text-decoration: none;">
+                <button class="connect-ebay-btn">🔗 Connect eBay Account</button>
+            </a>
         </div>
         
-        <div class="example">
-            Example: B0ABCD1234 or full URL
-        </div>
+        <p class="example">Example: B0ABCD1234 or full URL</p>
     </div>
-    
+
     <div class="toast" id="toast"></div>
 
     <script>
         async function pasteFromClipboard() {
             try {
                 const text = await navigator.clipboard.readText();
-                document.getElementById('urlInput').value = text.trim();
-                document.getElementById('urlInput').focus();
+                document.getElementById('urlInput').value = text;
             } catch (err) {
-                alert('Cannot paste. Use Ctrl+V.');
+                alert('Please paste manually (Ctrl+V / Cmd+V)');
             }
         }
 
         async function clearCache() {
-            if (!confirm('Clear ALL cache?')) return;
+            if (!confirm('Clear all cached products? You will need to re-scrape them.')) {
+                return;
+            }
             
             try {
-                const response = await fetch('/clear-cache', { method: 'POST' });
+                const response = await fetch('/clear-cache', {
+                    method: 'POST'
+                });
                 const result = await response.json();
                 
                 if (result.success) {
-                    showToast('✓ Cache cleared (' + result.deleted + ')');
+                    showToast('✓ Cache cleared for ' + result.deleted + ' products');
+                } else {
+                    throw new Error(result.error || 'Cache clear error');
                 }
             } catch (error) {
                 alert('Error: ' + error.message);
             }
         }
-        
+
         function showToast(message) {
             const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3000);
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
         }
     </script>
 </body>
