@@ -7,12 +7,13 @@ import json
 import os
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import unquote
+from urllib.parse import unquote, urlencode
 import zipfile
 from hashlib import md5
 import sqlite3
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
+import base64
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -23,22 +24,37 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Please log in to access this page.'
 
-# ----------------- BRIGHT DATA -----------------
+# eBay OAuth Configuration
+EBAY_APP_ID = os.environ.get('EBAY_APP_ID', '')
+EBAY_CERT_ID = os.environ.get('EBAY_CERT_ID', '')
+EBAY_REDIRECT_URI = os.environ.get('EBAY_REDIRECT_URI', 'https://amazon-to-ebay-1.onrender.com/ebay/callback')
+
+EBAY_AUTH_URL = "https://auth.ebay.com/oauth2/authorize"
+EBAY_TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
+
+EBAY_SCOPES = [
+    "https://api.ebay.com/oauth/api_scope/sell.inventory",
+    "https://api.ebay.com/oauth/api_scope/sell.fulfillment",
+    "https://api.ebay.com/oauth/api_scope/sell.account",
+    "https://api.ebay.com/oauth/api_scope/sell.marketing",
+]
+
+# Bright Data Configuration
 BRIGHTDATA_API_KEY = "1bbcee91427624e79bfbc87c146ae2dbf0ddce6f55f0ed8ef2f448b49ca3e93d"
 BRIGHTDATA_ZONE = "web_unlocker1"
 BRIGHTDATA_ENDPOINT = "https://api.brightdata.com/request"
 
-# ----------------- CACHE -----------------
+# Directories
 CACHE_DIR = "cache"
 UPLOADS_DIR = "uploads"
 os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
-# ----------------- DATABASE -----------------
+# Database
 DB_PATH = "history.db"
 MAX_HISTORY = 50
 
-# User Model for Flask-Login
+# User Model
 class User(UserMixin):
     def __init__(self, id, email):
         self.id = id
@@ -57,7 +73,7 @@ def load_user(user_id):
     return None
 
 def init_db():
-    """Initialize database with users table"""
+    """Initialize database"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
@@ -71,7 +87,23 @@ def init_db():
         )
     ''')
     
-    # Search history (add user_id)
+    # eBay accounts table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS ebay_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            ebay_user_id TEXT,
+            email TEXT,
+            access_token TEXT NOT NULL,
+            refresh_token TEXT NOT NULL,
+            expires_at DATETIME NOT NULL,
+            is_active INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')
+    
+    # Search history
     c.execute('''
         CREATE TABLE IF NOT EXISTS search_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -167,7 +199,7 @@ def get_history_from_db(user_id, limit=50):
     ]
 
 def get_product_details(user_id, asin):
-    """Get product details for user"""
+    """Get product details"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''
@@ -209,6 +241,43 @@ def get_product_images(user_id, asin):
     rows = c.fetchall()
     conn.close()
     return [row[0] for row in rows]
+
+def get_user_ebay_accounts(user_id):
+    """Get user's eBay accounts"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        SELECT id, ebay_user_id, email, is_active, created_at
+        FROM ebay_accounts
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+    ''', (user_id,))
+    rows = c.fetchall()
+    conn.close()
+    
+    return [
+        {
+            'id': row[0],
+            'ebay_user_id': row[1],
+            'email': row[2],
+            'is_active': row[3],
+            'created_at': row[4]
+        }
+        for row in rows
+    ]
+
+def save_ebay_tokens(user_id, access_token, refresh_token, expires_in, ebay_user_id=None, email=None):
+    """Save eBay OAuth tokens"""
+    expires_at = datetime.now() + timedelta(seconds=expires_in)
+    
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO ebay_accounts (user_id, ebay_user_id, email, access_token, refresh_token, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (user_id, ebay_user_id, email, access_token, refresh_token, expires_at))
+    conn.commit()
+    conn.close()
 
 def cache_load(key):
     path = os.path.join(CACHE_DIR, key + ".json")
@@ -481,7 +550,77 @@ def logout():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    return render_template("index.html")
+    ebay_accounts = get_user_ebay_accounts(current_user.id)
+    return render_template("index.html", ebay_accounts=ebay_accounts)
+
+# ========== EBAY OAUTH ROUTES ==========
+
+@app.route("/ebay/connect")
+@login_required
+def ebay_connect():
+    """Step 1: Redirect to eBay OAuth"""
+    if not EBAY_APP_ID or not EBAY_CERT_ID:
+        flash("eBay credentials not configured", "error")
+        return redirect(url_for('dashboard'))
+    
+    params = {
+        'client_id': EBAY_APP_ID,
+        'redirect_uri': EBAY_REDIRECT_URI,
+        'response_type': 'code',
+        'scope': ' '.join(EBAY_SCOPES),
+    }
+    
+    auth_url = f"{EBAY_AUTH_URL}?{urlencode(params)}"
+    return redirect(auth_url)
+
+@app.route("/ebay/callback")
+@login_required
+def ebay_callback():
+    """Step 2: Exchange code for token"""
+    code = request.args.get('code')
+    
+    if not code:
+        flash("eBay authorization failed - no code received", "error")
+        return redirect(url_for('dashboard'))
+    
+    # Exchange code for tokens
+    auth_string = f"{EBAY_APP_ID}:{EBAY_CERT_ID}"
+    auth_header = base64.b64encode(auth_string.encode()).decode()
+    
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': f'Basic {auth_header}'
+    }
+    
+    data = {
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': EBAY_REDIRECT_URI
+    }
+    
+    try:
+        response = requests.post(EBAY_TOKEN_URL, headers=headers, data=data, timeout=30)
+        response.raise_for_status()
+        
+        token_data = response.json()
+        access_token = token_data['access_token']
+        refresh_token = token_data['refresh_token']
+        expires_in = token_data['expires_in']
+        
+        # Save tokens to database
+        save_ebay_tokens(current_user.id, access_token, refresh_token, expires_in)
+        
+        flash("eBay account connected successfully!", "success")
+        return redirect(url_for('dashboard'))
+        
+    except requests.exceptions.HTTPError as e:
+        error_detail = e.response.text if e.response else str(e)
+        flash(f"eBay OAuth Error: {error_detail}", "error")
+        return redirect(url_for('dashboard'))
+    except Exception as e:
+        flash(f"Error: {str(e)}", "error")
+        return redirect(url_for('dashboard'))
+
 
 # ========== SCRAPER ROUTES ==========
 
@@ -517,8 +656,6 @@ def scrape():
         listing_text=listing_text,
         price=price or ''
     )
-
-# (Kontynuacja z części 1...)
 
 @app.route("/save-product", methods=["POST"])
 @login_required
