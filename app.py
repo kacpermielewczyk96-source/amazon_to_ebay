@@ -28,6 +28,7 @@ login_manager.login_message = 'Please log in to access this page.'
 EBAY_APP_ID = os.environ.get('EBAY_APP_ID', '')
 EBAY_CERT_ID = os.environ.get('EBAY_CERT_ID', '')
 EBAY_REDIRECT_URI = os.environ.get('EBAY_REDIRECT_URI', 'https://amazon-to-ebay-1.onrender.com/ebay/callback')
+EBAY_RUNAME = 'Everyday_Deals_-Everyday-Everyd-klnyp'
 
 EBAY_AUTH_URL = "https://auth.ebay.com/oauth2/authorize"
 EBAY_TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
@@ -74,6 +75,8 @@ def load_user(user_id):
 
 def init_db():
     """Initialize database"""
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
@@ -553,6 +556,8 @@ def dashboard():
     ebay_accounts = get_user_ebay_accounts(current_user.id)
     return render_template("index.html", ebay_accounts=ebay_accounts)
 
+# (Kontynuacja z części 1...)
+
 # ========== EBAY OAUTH ROUTES ==========
 
 @app.route("/ebay/connect")
@@ -578,6 +583,7 @@ def ebay_connect():
     
     auth_url = f"{EBAY_AUTH_URL}?{urlencode(params)}"
     return redirect(auth_url)
+
 @app.route("/ebay/callback")
 @login_required
 def ebay_callback():
@@ -634,7 +640,6 @@ def ebay_callback():
     except Exception as e:
         flash(f"Error: {str(e)}", "error")
         return redirect(url_for('dashboard'))
-
 
 # ========== SCRAPER ROUTES ==========
 
@@ -913,6 +918,7 @@ def history_page():
     history = get_history_from_db(current_user.id, limit=50)
     return render_template("history.html", history=history)
 
+
 @app.route("/proxy")
 def proxy():
     r = requests.get(unquote(request.args.get("u", "")), timeout=25)
@@ -935,10 +941,6 @@ def download_zip():
         as_attachment=True,
         download_name="images.zip"
     )
-
-@app.route("/health")
-def health():
-    return "ok", 200
 
 @app.route("/privacy")
 def privacy():
@@ -1008,6 +1010,10 @@ def privacy():
     </html>
     '''
     return html
+
+@app.route("/health")
+def health():
+    return "ok", 200
 
 if __name__ == "__main__":
     app.run(debug=True, port=8000)
