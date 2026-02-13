@@ -940,5 +940,72 @@ def download_zip():
 def health():
     return "ok", 200
 
+@app.route("/privacy")
+def privacy():
+    """Privacy policy page (required by eBay)"""
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Privacy Policy - Everyday Deals UK</title>
+        <style>
+            body { 
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                padding: 40px 20px; 
+                max-width: 800px; 
+                margin: 0 auto;
+                line-height: 1.6;
+                color: #333;
+            }
+            h1 { color: #0f0c29; margin-bottom: 10px; }
+            h2 { color: #302b63; margin-top: 30px; }
+            .date { color: #666; font-size: 14px; margin-bottom: 20px; }
+            ul { margin-left: 20px; }
+            li { margin: 8px 0; }
+        </style>
+    </head>
+    <body>
+        <h1>Privacy Policy</h1>
+        <p class="date">Last updated: February 13, 2026</p>
+        
+        <h2>Introduction</h2>
+        <p>Everyday Deals UK ("we", "our", "us") respects your privacy. This policy explains how we handle your data when you use our Amazon to eBay listing tool.</p>
+        
+        <h2>Data We Access</h2>
+        <p>When you connect your eBay account, we access:</p>
+        <ul>
+            <li>Your eBay seller account information</li>
+            <li>Inventory management permissions</li>
+            <li>Listing and fulfillment permissions</li>
+        </ul>
+        
+        <h2>How We Use Your Data</h2>
+        <p>We use your eBay account data only to:</p>
+        <ul>
+            <li>Create and manage product listings on your behalf</li>
+            <li>Update inventory and pricing information</li>
+            <li>Process orders and fulfillment</li>
+        </ul>
+        
+        <h2>Data Storage</h2>
+        <p>Your eBay OAuth tokens are stored securely and encrypted. We do not store your eBay password.</p>
+        
+        <h2>Data Sharing</h2>
+        <p>We do NOT share your data with any third parties. Your information is used exclusively for the functionality of our service.</p>
+        
+        <h2>Your Rights</h2>
+        <p>You can disconnect your eBay account at any time. You can also request deletion of your data by contacting us.</p>
+        
+        <h2>Contact</h2>
+        <p>For questions about this privacy policy, contact us at: support@everydaydeals.co.uk</p>
+        
+        <p style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; font-size: 14px; color: #666;">
+            <a href="/dashboard" style="color: #302b63; text-decoration: none;">← Back to Dashboard</a>
+        </p>
+    </body>
+    </html>
+
 if __name__ == "__main__":
     app.run(debug=True, port=8000)
