@@ -1,4 +1,6 @@
-from flask import Flask, render_template, request, send_file, Response, jsonify
+from flask import Flask, render_template, request, send_file, Response, jsonify, redirect, url_for, flash, session
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 from io import BytesIO
 import re
 import json
@@ -9,10 +11,17 @@ from urllib.parse import unquote
 import zipfile
 from hashlib import md5
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# Flask-Login setup
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access this page.'
 
 # ----------------- BRIGHT DATA -----------------
 BRIGHTDATA_API_KEY = "1bbcee91427624e79bfbc87c146ae2dbf0ddce6f55f0ed8ef2f448b49ca3e93d"
@@ -29,34 +38,66 @@ os.makedirs(UPLOADS_DIR, exist_ok=True)
 DB_PATH = "history.db"
 MAX_HISTORY = 50
 
+# User Model for Flask-Login
+class User(UserMixin):
+    def __init__(self, id, email):
+        self.id = id
+        self.email = email
+
+@login_manager.user_loader
+def load_user(user_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT id, email FROM users WHERE id = ?', (user_id,))
+    user = c.fetchone()
+    conn.close()
+    
+    if user:
+        return User(id=user[0], email=user[1])
+    return None
+
 def init_db():
-    """Inicjalizacja bazy danych"""
+    """Initialize database with users table"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
-    # Tabela główna z historią
+    # Users table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Search history (add user_id)
     c.execute('''
         CREATE TABLE IF NOT EXISTS search_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            asin TEXT NOT NULL UNIQUE,
+            user_id INTEGER NOT NULL,
+            asin TEXT NOT NULL,
             title TEXT,
             image_url TEXT,
             sku TEXT,
             notes TEXT,
             custom_description TEXT,
             price TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            UNIQUE(user_id, asin)
         )
     ''')
     
-    # Tabela z dodatkowymi zdjęciami
+    # Product images
     c.execute('''
         CREATE TABLE IF NOT EXISTS product_images (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
             asin TEXT NOT NULL,
             image_path TEXT NOT NULL,
             uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (asin) REFERENCES search_history(asin)
+            FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ''')
     
@@ -65,75 +106,75 @@ def init_db():
 
 init_db()
 
-def save_to_history_db(asin, title=None, image_url=None, sku=None, price=None):
-    """Zapisz lub zaktualizuj wpis w historii"""
+def save_to_history_db(user_id, asin, title=None, image_url=None, sku=None, price=None):
+    """Save or update search history"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
-        # Sprawdź czy istnieje
-        c.execute('SELECT id FROM search_history WHERE asin = ?', (asin,))
+        c.execute('SELECT id FROM search_history WHERE user_id = ? AND asin = ?', (user_id, asin))
         existing = c.fetchone()
         
         if existing:
-            # Aktualizuj istniejący
-            if sku is not None:
-                c.execute('''
-                    UPDATE search_history 
-                    SET title = ?, image_url = ?, sku = ?, price = ?, timestamp = ?
-                    WHERE asin = ?
-                ''', (title, image_url, sku, price, datetime.now(), asin))
-            else:
-                c.execute('''
-                    UPDATE search_history 
-                    SET title = ?, image_url = ?, price = ?, timestamp = ?
-                    WHERE asin = ?
-                ''', (title, image_url, price, datetime.now(), asin))
-        else:
-            # Dodaj nowy
             c.execute('''
-                INSERT INTO search_history (asin, title, image_url, sku, price, timestamp)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (asin, title, image_url, sku, price, datetime.now()))
+                UPDATE search_history 
+                SET title = ?, image_url = ?, sku = ?, price = ?, timestamp = ?
+                WHERE user_id = ? AND asin = ?
+            ''', (title, image_url, sku, price, datetime.now(), user_id, asin))
+        else:
+            c.execute('''
+                INSERT INTO search_history (user_id, asin, title, image_url, sku, price, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (user_id, asin, title, image_url, sku, price, datetime.now()))
         
-        # Usuń najstarsze jeśli > MAX_HISTORY
         c.execute('''
             DELETE FROM search_history
-            WHERE id NOT IN (
+            WHERE user_id = ? AND id NOT IN (
                 SELECT id FROM search_history
+                WHERE user_id = ?
                 ORDER BY timestamp DESC
                 LIMIT ?
             )
-        ''', (MAX_HISTORY,))
+        ''', (user_id, user_id, MAX_HISTORY))
         
         conn.commit()
     finally:
         conn.close()
 
-def add_product_image(asin, image_path):
-    """Dodaj dodatkowe zdjęcie do produktu"""
+def get_history_from_db(user_id, limit=50):
+    """Get user's search history"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''
-        INSERT INTO product_images (asin, image_path, uploaded_at)
-        VALUES (?, ?, ?)
-    ''', (asin, image_path, datetime.now()))
-    conn.commit()
-    conn.close()
-
-def get_product_images(asin):
-    """Pobierz dodatkowe zdjęcia produktu"""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('SELECT image_path FROM product_images WHERE asin = ? ORDER BY uploaded_at', (asin,))
+        SELECT asin, title, image_url, sku, price, timestamp
+        FROM search_history
+        WHERE user_id = ?
+        ORDER BY timestamp DESC
+        LIMIT ?
+    ''', (user_id, limit))
     rows = c.fetchall()
     conn.close()
-    return [row[0] for row in rows]
+    
+    return [
+        {
+            'asin': row[0],
+            'title': row[1],
+            'image': row[2],
+            'sku': row[3] or '',
+            'price': row[4] or '',
+            'timestamp': row[5]
+        }
+        for row in rows
+    ]
 
-def get_product_details(asin):
-    """Pobierz szczegóły produktu z bazy"""
+def get_product_details(user_id, asin):
+    """Get product details for user"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT asin, title, image_url, sku, notes, custom_description, price FROM search_history WHERE asin = ?', (asin,))
+    c.execute('''
+        SELECT asin, title, image_url, sku, notes, custom_description, price 
+        FROM search_history 
+        WHERE user_id = ? AND asin = ?
+    ''', (user_id, asin))
     row = c.fetchone()
     conn.close()
     
@@ -149,30 +190,25 @@ def get_product_details(asin):
         }
     return None
 
-def get_history_from_db(limit=50):
-    """Pobierz ostatnie wyszukiwania"""
+def add_product_image(user_id, asin, image_path):
+    """Add product image"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''
-        SELECT asin, title, image_url, sku, price, timestamp
-        FROM search_history
-        ORDER BY timestamp DESC
-        LIMIT ?
-    ''', (limit,))
+        INSERT INTO product_images (user_id, asin, image_path, uploaded_at)
+        VALUES (?, ?, ?, ?)
+    ''', (user_id, asin, image_path, datetime.now()))
+    conn.commit()
+    conn.close()
+
+def get_product_images(user_id, asin):
+    """Get product images"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT image_path FROM product_images WHERE user_id = ? AND asin = ? ORDER BY uploaded_at', (user_id, asin))
     rows = c.fetchall()
     conn.close()
-    
-    return [
-        {
-            'asin': row[0],
-            'title': row[1],
-            'image': row[2],
-            'sku': row[3] or '',
-            'price': row[4] or '',
-            'timestamp': row[5]
-        }
-        for row in rows
-    ]
+    return [row[0] for row in rows]
 
 def cache_load(key):
     path = os.path.join(CACHE_DIR, key + ".json")
@@ -189,8 +225,6 @@ def cache_save(key, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-# ----------------- helpers -----------------
-
 def truncate_title_80(s: str) -> str:
     s = (s or "").strip()
     if len(s) <= 80:
@@ -202,15 +236,12 @@ def truncate_title_80(s: str) -> str:
 
 def extract_highres_images(html: str):
     urls = []
-
     for m in re.finditer(r'"hiRes"\s*:\s*"([^"]+)"', html):
         urls.append(m.group(1).replace("\\u0026", "&"))
-
     for m in re.finditer(r'"large"\s*:\s*"([^"]+)"', html):
         u = m.group(1).replace("\\u0026", "&")
         if u not in urls:
             urls.append(u)
-
     dyn = re.search(r'data-a-dynamic-image="({[^"]+})"', html)
     if dyn:
         try:
@@ -218,7 +249,6 @@ def extract_highres_images(html: str):
             urls.extend(obj.keys())
         except:
             pass
-
     clean, seen = [], set()
     for u in urls:
         u = u.split("?", 1)[0]
@@ -226,14 +256,11 @@ def extract_highres_images(html: str):
         if u.lower().endswith((".jpg", ".jpeg", ".png", ".webp")) and u not in seen:
             seen.add(u)
             clean.append(u)
-
     return clean[:12]
 
 def extract_price(html: str):
-    """Wyciągnij cenę z HTML Amazon"""
+    """Extract price from Amazon HTML"""
     soup = BeautifulSoup(html, "html.parser")
-    
-    # Próbuj różne selektory ceny
     price_selectors = [
         ("span", {"class": "a-price-whole"}),
         ("span", {"class": "a-offscreen"}),
@@ -241,24 +268,17 @@ def extract_price(html: str):
         ("span", {"id": "priceblock_dealprice"}),
         ("span", {"class": "a-color-price"}),
     ]
-    
     for tag, attrs in price_selectors:
         price_tag = soup.find(tag, attrs)
         if price_tag:
             price_text = price_tag.get_text(strip=True)
-            # Wyczyść cenę (usuń whitespace, zachowaj £ i liczby)
             price_clean = re.sub(r'\s+', '', price_text)
             if '£' in price_clean or '$' in price_clean or '€' in price_clean:
                 return price_clean
-    
-    # Fallback: szukaj wzorca £XX.XX w całym HTML
     price_match = re.search(r'£\s*(\d+[.,]\d{2})', html)
     if price_match:
         return f"£{price_match.group(1)}"
-    
     return None
-
-# ----------------- core scraper -----------------
 
 def fetch_amazon(url_or_asin: str):
     url_or_asin = (url_or_asin or "").strip()
@@ -303,11 +323,11 @@ def fetch_amazon(url_or_asin: str):
         print(f"✓ Successfully fetched {asin}")
         
     except requests.exceptions.Timeout:
-        print(f"⚠️ TIMEOUT for {asin} - BrightData took too long")
+        print(f"⚠️ TIMEOUT for {asin}")
         return {
-            "title": f"[TIMEOUT] {asin} - Spróbuj ponownie",
+            "title": f"[TIMEOUT] {asin} - Try again",
             "images": [],
-            "bullets": ["BrightData API timeout - spróbuj ponownie za chwilę"],
+            "bullets": ["BrightData timeout - try again later"],
             "meta": {},
             "price": None
         }
@@ -316,7 +336,7 @@ def fetch_amazon(url_or_asin: str):
         return {
             "title": f"[ERROR] {asin}",
             "images": [],
-            "bullets": [f"Błąd: {str(e)}"],
+            "bullets": [f"Error: {str(e)}"],
             "meta": {},
             "price": None
         }
@@ -327,7 +347,6 @@ def fetch_amazon(url_or_asin: str):
     title = title_tag.get_text(strip=True) if title_tag else "No title found"
 
     images = extract_highres_images(html)
-    
     price = extract_price(html)
 
     bullets = [
@@ -372,17 +391,102 @@ def generate_listing_text(title, meta, bullets):
     lines.append("📦 Fast Dispatch from UK   |   🚚 Tracked Delivery Included")
     return "\n".join(lines)
 
-# ----------------- routes -----------------
-
-@app.route("/health")
-def health():
-    return "ok", 200
+# ========== AUTH ROUTES ==========
 
 @app.route("/")
 def index():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        remember = request.form.get("remember") == "on"
+        
+        if not email or not password:
+            flash("Please enter email and password", "error")
+            return render_template("login.html")
+        
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('SELECT id, email, password_hash FROM users WHERE email = ?', (email,))
+        user = c.fetchone()
+        conn.close()
+        
+        if user and check_password_hash(user[2], password):
+            user_obj = User(id=user[0], email=user[1])
+            login_user(user_obj, remember=remember)
+            return redirect(url_for('dashboard'))
+        else:
+            flash("Invalid email or password", "error")
+    
+    return render_template("login.html")
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm", "")
+        
+        if not email or not password:
+            flash("Please enter email and password", "error")
+            return render_template("register.html")
+        
+        if password != confirm:
+            flash("Passwords do not match", "error")
+            return render_template("register.html")
+        
+        if len(password) < 8:
+            flash("Password must be at least 8 characters", "error")
+            return render_template("register.html")
+        
+        password_hash = generate_password_hash(password)
+        
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute('INSERT INTO users (email, password_hash) VALUES (?, ?)', (email, password_hash))
+            conn.commit()
+            user_id = c.lastrowid
+            conn.close()
+            
+            user_obj = User(id=user_id, email=email)
+            login_user(user_obj)
+            flash("Account created successfully!", "success")
+            return redirect(url_for('dashboard'))
+            
+        except sqlite3.IntegrityError:
+            flash("Email already registered", "error")
+        except Exception as e:
+            flash(f"Registration error: {str(e)}", "error")
+    
+    return render_template("register.html")
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
     return render_template("index.html")
 
+# ========== SCRAPER ROUTES ==========
+
 @app.route("/scrape", methods=["POST"])
+@login_required
 def scrape():
     url_input = request.form.get("url", "")
     data = fetch_amazon(url_input)
@@ -394,29 +498,18 @@ def scrape():
     
     first_image = data["images"][0] if data["images"] else None
     price = data.get("price")
+    save_to_history_db(current_user.id, asin, truncate_title_80(data["title"]), first_image, price=price)
     
-    # Pobierz istniejące dane (SKU, notes, dodatkowe zdjęcia, custom opis, CUSTOM TYTUŁ)
-    existing = get_product_details(asin)
-    extra_images = get_product_images(asin)
+    existing = get_product_details(current_user.id, asin)
+    extra_images = get_product_images(current_user.id, asin)
     
-    # UŻYJ CUSTOM TYTUŁ jeśli istnieje, inaczej tytuł z Amazon
-    if existing and existing['title']:
-        title_80 = existing['title'][:80]  # Custom tytuł z bazy
-        full_title = data["title"]  # Oryginalny tytuł z Amazon
-    else:
-        title_80 = truncate_title_80(data["title"])
-        full_title = data["title"]
-        # Zapisz do bazy pierwszy raz
-        save_to_history_db(asin, title_80, first_image, price=price)
-    
-    # Użyj custom description jeśli istnieje, inaczej wygeneruj nowy
     listing_text = existing['custom_description'] if existing and existing['custom_description'] else generate_listing_text(data["title"], data["meta"], data["bullets"])
     
     return render_template(
         "result.html",
         asin=asin,
-        title80=title_80,  # Tytuł z bazy (może być edytowany)
-        full_title=full_title,  # Oryginalny tytuł z Amazon
+        title80=truncate_title_80(data["title"]),
+        full_title=data["title"],
         images=data["images"],
         extra_images=extra_images,
         sku=existing['sku'] if existing else '',
@@ -425,9 +518,11 @@ def scrape():
         price=price or ''
     )
 
+
 @app.route("/save-product", methods=["POST"])
+@login_required
 def save_product():
-    """Zapisz SKU, notes i dodatkowe zdjęcia - ZWRACA JSON z nazwami plików"""
+    """Save SKU, notes and additional images"""
     try:
         asin = request.form.get("asin")
         sku = request.form.get("sku", "").strip()
@@ -436,39 +531,32 @@ def save_product():
         if not asin:
             return jsonify({'success': False, 'error': 'Missing ASIN'}), 400
         
-        # Aktualizuj SKU i notes
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute('UPDATE search_history SET sku = ?, notes = ?, timestamp = ? WHERE asin = ?', 
-                  (sku, notes, datetime.now(), asin))
+        c.execute('UPDATE search_history SET sku = ?, notes = ?, timestamp = ? WHERE user_id = ? AND asin = ?', 
+                  (sku, notes, datetime.now(), current_user.id, asin))
         conn.commit()
         conn.close()
         
-        # Zapisz nowe zdjęcia
         saved_count = 0
         uploaded_filenames = []
         if 'images' in request.files:
             files = request.files.getlist('images')
             for file in files:
                 if file and file.filename:
-                    # Bezpieczna nazwa pliku
                     original_filename = secure_filename(file.filename)
                     timestamp = str(int(datetime.now().timestamp()))
                     filename = f"{asin}_{timestamp}_{original_filename}"
                     filepath = os.path.join(UPLOADS_DIR, filename)
                     
-                    # Zapisz plik
                     file.save(filepath)
-                    
-                    # Dodaj do bazy
-                    add_product_image(asin, filename)
+                    add_product_image(current_user.id, asin, filename)
                     uploaded_filenames.append(filename)
                     saved_count += 1
         
-        # ZWRÓĆ JSON z nazwami wgranych plików
         return jsonify({
             'success': True, 
-            'message': 'Zapisano!',
+            'message': 'Saved!',
             'images_saved': saved_count,
             'uploaded_images': uploaded_filenames
         }), 200
@@ -478,21 +566,21 @@ def save_product():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route("/delete-image", methods=["POST"])
+@login_required
 def delete_image():
-    """Usuń dodatkowe zdjęcie"""
+    """Delete additional image"""
     try:
         data = request.get_json()
         asin = data.get('asin')
         filename = data.get('filename')
         
-        # Usuń z bazy
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute('DELETE FROM product_images WHERE asin = ? AND image_path = ?', (asin, filename))
+        c.execute('DELETE FROM product_images WHERE user_id = ? AND asin = ? AND image_path = ?', 
+                  (current_user.id, asin, filename))
         conn.commit()
         conn.close()
         
-        # Usuń plik
         filepath = os.path.join(UPLOADS_DIR, filename)
         if os.path.exists(filepath):
             os.remove(filepath)
@@ -503,8 +591,9 @@ def delete_image():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route("/save-description", methods=["POST"])
+@login_required
 def save_description():
-    """Zapisz edytowany opis"""
+    """Save edited description"""
     try:
         data = request.get_json()
         asin = data.get('asin')
@@ -512,7 +601,34 @@ def save_description():
         
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute('UPDATE search_history SET custom_description = ? WHERE asin = ?', (description, asin))
+        c.execute('UPDATE search_history SET custom_description = ? WHERE user_id = ? AND asin = ?', 
+                  (description, current_user.id, asin))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True}), 200
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route("/save-title", methods=["POST"])
+@login_required
+def save_title():
+    """Save edited title"""
+    try:
+        data = request.get_json()
+        asin = data.get('asin')
+        title = data.get('title', '').strip()
+        
+        if not asin:
+            return jsonify({'success': False, 'error': 'Missing ASIN'}), 400
+        
+        title = title[:80]
+        
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('UPDATE search_history SET title = ? WHERE user_id = ? AND asin = ?', 
+                  (title, current_user.id, asin))
         conn.commit()
         conn.close()
         
@@ -522,35 +638,38 @@ def save_description():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route("/uploads/<filename>")
+@login_required
 def uploaded_file(filename):
-    """Serwuj wgrane zdjęcia"""
+    """Serve uploaded images"""
     filepath = os.path.join(UPLOADS_DIR, filename)
     if os.path.exists(filepath):
         return send_file(filepath, mimetype='image/jpeg')
     return "Not found", 404
 
 @app.route("/api/history")
+@login_required
 def api_history():
-    """API endpoint do pobierania historii"""
-    history = get_history_from_db(limit=50)
+    """API endpoint for history"""
+    history = get_history_from_db(current_user.id, limit=50)
     return jsonify(history)
 
 @app.route("/api/product/<asin>")
+@login_required
 def api_product(asin):
-    """API do pobierania szczegółów produktu"""
-    details = get_product_details(asin)
+    """API for product details"""
+    details = get_product_details(current_user.id, asin)
     if details:
-        details['extra_images'] = get_product_images(asin)
+        details['extra_images'] = get_product_images(current_user.id, asin)
         return jsonify(details)
     return jsonify({'error': 'Not found'}), 404
 
 @app.route("/clear-cache", methods=["POST"])
+@login_required
 def clear_cache():
-    """Wyczyść cache scraped products"""
+    """Clear scraped products cache"""
     try:
         deleted_count = 0
         
-        # Usuń wszystkie pliki z folderu cache
         if os.path.exists(CACHE_DIR):
             for filename in os.listdir(CACHE_DIR):
                 filepath = os.path.join(CACHE_DIR, filename)
@@ -561,7 +680,7 @@ def clear_cache():
         return jsonify({
             'success': True,
             'deleted': deleted_count,
-            'message': f'Wyczyszczono {deleted_count} produktów z cache'
+            'message': f'Cleared {deleted_count} products from cache'
         }), 200
     
     except Exception as e:
@@ -569,8 +688,9 @@ def clear_cache():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route("/clear-single-cache", methods=["POST"])
+@login_required
 def clear_single_cache():
-    """Wyczyść cache dla pojedynczego produktu"""
+    """Clear cache for single product"""
     try:
         data = request.get_json()
         asin = data.get('asin')
@@ -578,7 +698,6 @@ def clear_single_cache():
         if not asin:
             return jsonify({'success': False, 'error': 'Missing ASIN'}), 400
         
-        # Wygeneruj klucz cache dla tego ASIN
         cache_key = md5(asin.encode()).hexdigest()
         cache_file = os.path.join(CACHE_DIR, cache_key + ".json")
         
@@ -586,12 +705,12 @@ def clear_single_cache():
             os.remove(cache_file)
             return jsonify({
                 'success': True,
-                'message': f'Cache usunięty dla {asin}'
+                'message': f'Cache cleared for {asin}'
             }), 200
         else:
             return jsonify({
                 'success': True,
-                'message': f'Brak cache dla {asin}'
+                'message': f'No cache for {asin}'
             }), 200
     
     except Exception as e:
@@ -599,8 +718,9 @@ def clear_single_cache():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route("/delete-from-history", methods=["POST"])
+@login_required
 def delete_from_history():
-    """Usuń produkt z historii"""
+    """Delete product from history"""
     try:
         data = request.get_json()
         asin = data.get('asin')
@@ -611,25 +731,23 @@ def delete_from_history():
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         
-        # Usuń z historii
-        c.execute('DELETE FROM search_history WHERE asin = ?', (asin,))
+        c.execute('DELETE FROM search_history WHERE user_id = ? AND asin = ?', (current_user.id, asin))
         
-        # Usuń dodatkowe zdjęcia z bazy
-        c.execute('SELECT image_path FROM product_images WHERE asin = ?', (asin,))
+        c.execute('SELECT image_path FROM product_images WHERE user_id = ? AND asin = ?', (current_user.id, asin))
         images = c.fetchall()
         for img in images:
             filepath = os.path.join(UPLOADS_DIR, img[0])
             if os.path.exists(filepath):
                 os.remove(filepath)
         
-        c.execute('DELETE FROM product_images WHERE asin = ?', (asin,))
+        c.execute('DELETE FROM product_images WHERE user_id = ? AND asin = ?', (current_user.id, asin))
         
         conn.commit()
         conn.close()
         
         return jsonify({
             'success': True,
-            'message': f'Usunięto {asin} z historii'
+            'message': f'Deleted {asin} from history'
         }), 200
     
     except Exception as e:
@@ -637,9 +755,10 @@ def delete_from_history():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route("/history")
+@login_required
 def history_page():
-    """Strona z historią wyszukiwań"""
-    history = get_history_from_db(limit=50)
+    """History page"""
+    history = get_history_from_db(current_user.id, limit=50)
     return render_template("history.html", history=history)
 
 @app.route("/proxy")
@@ -648,6 +767,7 @@ def proxy():
     return Response(r.content, mimetype="image/jpeg")
 
 @app.route("/download-zip", methods=["POST"])
+@login_required
 def download_zip():
     mem = BytesIO()
     with zipfile.ZipFile(mem, "w") as z:
@@ -664,30 +784,9 @@ def download_zip():
         download_name="images.zip"
     )
 
-@app.route("/save-title", methods=["POST"])
-def save_title():
-    """Zapisz edytowany tytuł"""
-    try:
-        data = request.get_json()
-        asin = data.get('asin')
-        title = data.get('title', '').strip()
-        
-        if not asin:
-            return jsonify({'success': False, 'error': 'Missing ASIN'}), 400
-        
-        # Ogranicz do 80 znaków
-        title = title[:80]
-        
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute('UPDATE search_history SET title = ? WHERE asin = ?', (title, asin))
-        conn.commit()
-        conn.close()
-        
-        return jsonify({'success': True}), 200
-    
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+@app.route("/health")
+def health():
+    return "ok", 200
 
 if __name__ == "__main__":
     app.run(debug=True, port=8000)
