@@ -943,7 +943,7 @@ def health():
 @app.route("/privacy")
 def privacy():
     """Privacy policy page (required by eBay)"""
-    return """
+    html = '''
     <!DOCTYPE html>
     <html>
     <head>
@@ -971,7 +971,7 @@ def privacy():
         <p class="date">Last updated: February 13, 2026</p>
         
         <h2>Introduction</h2>
-        <p>Everyday Deals UK ("we", "our", "us") respects your privacy. This policy explains how we handle your data when you use our Amazon to eBay listing tool.</p>
+        <p>Everyday Deals UK respects your privacy. This policy explains how we handle your data when you use our Amazon to eBay listing tool.</p>
         
         <h2>Data We Access</h2>
         <p>When you connect your eBay account, we access:</p>
@@ -1002,10 +1002,12 @@ def privacy():
         <p>For questions about this privacy policy, contact us at: support@everydaydeals.co.uk</p>
         
         <p style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; font-size: 14px; color: #666;">
-            <a href="/dashboard" style="color: #302b63; text-decoration: none;">← Back to Dashboard</a>
+            <a href="/dashboard" style="color: #302b63; text-decoration: none;">Back to Dashboard</a>
         </p>
     </body>
     </html>
+    '''
+    return html
 
 if __name__ == "__main__":
     app.run(debug=True, port=8000)
