@@ -568,20 +568,24 @@ def ebay_connect():
         flash("eBay credentials not configured", "error")
         return redirect(url_for('dashboard'))
     
-    # eBay OAuth wymaga "state" parameter dla bezpieczeństwa
+    # Generate state for CSRF protection
     import secrets
     state = secrets.token_urlsafe(32)
     session['ebay_oauth_state'] = state
     
+    # eBay OAuth parameters - VERY SPECIFIC FORMAT
     params = {
         'client_id': EBAY_APP_ID,
-        'redirect_uri': EBAY_REDIRECT_URI,
         'response_type': 'code',
-        'scope': ' '.join(EBAY_SCOPES),
+        'redirect_uri': EBAY_REDIRECT_URI,
+        'scope': 'https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.fulfillment https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.marketing',
         'state': state
     }
     
-    auth_url = f"{EBAY_AUTH_URL}?{urlencode(params)}"
+    # Build URL manually - DO NOT use urlencode for scope!
+    auth_url = f"{EBAY_AUTH_URL}?client_id={params['client_id']}&response_type={params['response_type']}&redirect_uri={params['redirect_uri']}&scope={params['scope']}&state={params['state']}"
+    
+    print(f"🔗 Redirecting to eBay OAuth: {auth_url}")
     return redirect(auth_url)
 
 @app.route("/ebay/callback")
