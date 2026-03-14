@@ -15,7 +15,7 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 
 # ----------------- BRIGHT DATA -----------------
-BRIGHTDATA_API_KEY = "1bbcee91427624e79bfbc87c146ae2dbf0ddce6f55f0ed8ef2f448b49ca3e93d"
+BRIGHTDATA_API_KEY = "98ffe329-7288-47d3-94ae-b2945e1db937"
 BRIGHTDATA_ZONE = "web_unlocker1"
 BRIGHTDATA_ENDPOINT = "https://api.brightdata.com/request"
 
